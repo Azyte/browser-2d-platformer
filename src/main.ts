@@ -21,10 +21,13 @@ import { MonsterAISystem } from './rpg/MonsterAISystem';
 import { SimulatedMMOPlayerSystem } from './rpg/SimulatedMMOPlayerSystem';
 import { ChatManager } from './rpg/ChatSystem';
 import { MMORenderSystem, MMOVisualComponent } from './rpg/MMORenderSystem';
+import { QuestManager } from './rpg/QuestSystem';
+import { LootSystem } from './rpg/LootSystem';
+import { SoundSynthesizer } from './audio/SoundSynthesizer';
 import type { Entity } from './ecs/Entity';
 
 // ============================================================================
-// 1. KONFIGURASI DUNIA GAME (WORLD CONFIG)
+// 1. KONFIGURASI DUNIA & LAYOUT RESPONSIVE (NO OFFSIDE)
 // ============================================================================
 
 const WORLD_WIDTH = 2400;
@@ -32,77 +35,98 @@ const WORLD_HEIGHT = 1600;
 const CANVAS_WIDTH = 800;
 const CANVAS_HEIGHT = 480;
 
-// Setup DOM Layout
 const app = document.querySelector<HTMLDivElement>('#app');
 if (!app) throw new Error('Elemen #app tidak ditemukan');
 
 app.innerHTML = `
-  <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 18px 24px; background: #0d1117; color: #e6edf3; min-height: 100vh; box-sizing: border-box;">
-    <!-- Header -->
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid #30363d; padding-bottom: 10px;">
-      <div>
-        <h1 style="margin: 0; color: #58a6ff; font-size: 22px; font-weight: 700; letter-spacing: -0.5px;">
-          ⚔️ Aethelgard 2D: Top-Down MMORPG Engine
-        </h1>
-        <p style="color: #8b949e; margin: 4px 0 0 0; font-size: 13px;">
-          Simulated MMO World - Custom ECS Architecture, Depth Y-Sorting & Autonomous Bots (GDGoC Portfolio)
-        </p>
-      </div>
-      <div style="display: flex; gap: 8px;">
-        <span style="background: #238636; color: #ffffff; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;">
-          🟢 Server Online
-        </span>
-        <span style="background: #1f6feb; color: #ffffff; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;">
-          Channel 1
-        </span>
-      </div>
-    </div>
-
-    <!-- Metrik Bar -->
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 14px;">
-      <div style="background: #161b22; padding: 8px 14px; border-radius: 6px; border: 1px solid #30363d;">
-        <div style="color: #8b949e; font-size: 11px; font-weight: 500;">FPS / UPS</div>
-        <div style="font-size: 17px; font-weight: bold; margin-top: 2px;">
-          <span id="fps-val" style="color: #3fb950;">0</span> / <span id="ups-val" style="color: #58a6ff;">0</span>
+  <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 14px; background: #090d13; color: #e6edf3; min-height: 100vh; box-sizing: border-box; overflow-x: hidden;">
+    <div style="max-width: 860px; margin: 0 auto; box-sizing: border-box; width: 100%;">
+      <!-- Header -->
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid #30363d; padding-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+        <div>
+          <h1 style="margin: 0; color: #58a6ff; font-size: 20px; font-weight: 700; letter-spacing: -0.5px;">
+            ⚔️ Aethelgard 2D: Top-Down MMORPG Engine
+          </h1>
+          <p style="color: #8b949e; margin: 4px 0 0 0; font-size: 12px;">
+            Simulated MMO World - Custom ECS, Depth Y-Sorting, Autonomous Bots & Quests (GDGoC Portfolio)
+          </p>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <span style="background: #238636; color: #ffffff; padding: 3px 8px; border-radius: 10px; font-size: 11px; font-weight: 600;">
+            🟢 Server Online
+          </span>
+          <span style="background: #1f6feb; color: #ffffff; padding: 3px 8px; border-radius: 10px; font-size: 11px; font-weight: 600;">
+            CH 1
+          </span>
         </div>
       </div>
-      <div style="background: #161b22; padding: 8px 14px; border-radius: 6px; border: 1px solid #30363d;">
-        <div style="color: #8b949e; font-size: 11px; font-weight: 500;">Hero Level</div>
-        <div id="player-lvl" style="font-size: 17px; font-weight: bold; color: #e3b341; margin-top: 2px;">Lv. 1</div>
-      </div>
-      <div style="background: #161b22; padding: 8px 14px; border-radius: 6px; border: 1px solid #30363d;">
-        <div style="color: #8b949e; font-size: 11px; font-weight: 500;">Gold Stash</div>
-        <div id="player-gold" style="font-size: 17px; font-weight: bold; color: #f0883e; margin-top: 2px;">0 G</div>
-      </div>
-      <div style="background: #161b22; padding: 8px 14px; border-radius: 6px; border: 1px solid #30363d;">
-        <div style="color: #8b949e; font-size: 11px; font-weight: 500;">Visible Entities</div>
-        <div id="entities-val" style="font-size: 17px; font-weight: bold; color: #79c0ff; margin-top: 2px;">0</div>
-      </div>
-      <div style="background: #161b22; padding: 8px 14px; border-radius: 6px; border: 1px solid #30363d;">
-        <div style="color: #8b949e; font-size: 11px; font-weight: 500;">Depth Sorting</div>
-        <div style="font-size: 13px; font-weight: bold; color: #3fb950; margin-top: 5px;">Active (Y-Base)</div>
-      </div>
-    </div>
 
-    <!-- Canvas Container -->
-    <div style="position: relative; display: inline-block;">
-      <canvas id="game-canvas" width="${CANVAS_WIDTH}" height="${CANVAS_HEIGHT}" style="display: block; border: 1px solid #30363d; background: #0b130e; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.5);"></canvas>
-    </div>
-
-    <!-- Quick Guide -->
-    <div style="margin-top: 14px; display: grid; grid-template-columns: 2fr 1fr; gap: 14px;">
-      <div style="background: #161b22; padding: 12px 16px; border-radius: 6px; border: 1px solid #30363d; font-size: 13px; line-height: 1.6;">
-        <div style="font-weight: 600; color: #79c0ff; margin-bottom: 6px;">🎮 Controls & Combat Guide:</div>
-        <div><strong style="color: #e6edf3;">[W, A, S, D]</strong> or <strong style="color: #e6edf3;">[Arrows]</strong>: 8-Way Movement (Normalized diagonal speed)</div>
-        <div><strong style="color: #e6edf3;">[Space]</strong> or <strong style="color: #e6edf3;">[J]</strong>: Basic Sword Attack (Single target in 52px range)</div>
-        <div><strong style="color: #e6edf3;">[K]</strong> or <strong style="color: #e6edf3;">[1]</strong>: Whirlwind Slash Skill (20 MP, 75px AOE, 2.2x Damage)</div>
-        <div><strong style="color: #e6edf3;">[Q]</strong>: Drink HP Potion (+50 HP) | <strong style="color: #e6edf3;">[E]</strong>: Drink MP Potion (+35 MP)</div>
+      <!-- Metrik Bar Grid (Responsif & Anti-Offside) -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(115px, 1fr)); gap: 10px; margin-bottom: 12px; width: 100%; box-sizing: border-box;">
+        <div style="background: #161b22; padding: 8px 12px; border-radius: 6px; border: 1px solid #30363d;">
+          <div style="color: #8b949e; font-size: 10px; font-weight: 500;">FPS / UPS</div>
+          <div style="font-size: 16px; font-weight: bold; margin-top: 2px;">
+            <span id="fps-val" style="color: #3fb950;">0</span> / <span id="ups-val" style="color: #58a6ff;">0</span>
+          </div>
+        </div>
+        <div style="background: #161b22; padding: 8px 12px; border-radius: 6px; border: 1px solid #30363d;">
+          <div style="color: #8b949e; font-size: 10px; font-weight: 500;">Hero Level</div>
+          <div id="player-lvl" style="font-size: 16px; font-weight: bold; color: #e3b341; margin-top: 2px;">Lv. 1</div>
+        </div>
+        <div style="background: #161b22; padding: 8px 12px; border-radius: 6px; border: 1px solid #30363d;">
+          <div style="color: #8b949e; font-size: 10px; font-weight: 500;">Gold Stash</div>
+          <div id="player-gold" style="font-size: 16px; font-weight: bold; color: #f0883e; margin-top: 2px;">0 G</div>
+        </div>
+        <div style="background: #161b22; padding: 8px 12px; border-radius: 6px; border: 1px solid #30363d;">
+          <div style="color: #8b949e; font-size: 10px; font-weight: 500;">Visible Entities</div>
+          <div id="entities-val" style="font-size: 16px; font-weight: bold; color: #79c0ff; margin-top: 2px;">0</div>
+        </div>
+        <div style="background: #161b22; padding: 8px 12px; border-radius: 6px; border: 1px solid #30363d;">
+          <div style="color: #8b949e; font-size: 10px; font-weight: 500;">Depth Sorting</div>
+          <div style="font-size: 12px; font-weight: bold; color: #3fb950; margin-top: 4px;">Active (Y-Base)</div>
+        </div>
       </div>
-      <div style="background: #161b22; padding: 12px 16px; border-radius: 6px; border: 1px solid #30363d; font-size: 12px; color: #8b949e; line-height: 1.5;">
-        <div style="font-weight: 600; color: #e3b341; margin-bottom: 4px;">✨ Simulated MMO Features:</div>
-        <div>- Autonomous player bots hunt, level up, and chat dynamically.</div>
-        <div>- Depth Y-Sorting: Walk in front and behind trees naturally.</div>
-        <div>- Monster Leashing: Mobs return to nest and heal if lured too far.</div>
+
+      <!-- Canvas Container (Responsif tanpa offside horizontal) -->
+      <div style="position: relative; width: 100%; max-width: 800px; margin: 0 auto; box-sizing: border-box;">
+        <canvas id="game-canvas" width="${CANVAS_WIDTH}" height="${CANVAS_HEIGHT}" style="display: block; width: 100%; max-width: 800px; height: auto; aspect-ratio: 800 / 480; border: 1px solid #30363d; background: #0b130e; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); box-sizing: border-box;"></canvas>
+      </div>
+
+      <!-- Quick Action & Emote Bar -->
+      <div style="display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; justify-content: space-between;">
+        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+          <button id="btn-chat-wave" style="background: #21262d; border: 1px solid #30363d; color: #e6edf3; padding: 5px 10px; border-radius: 6px; font-size: 11px; cursor: pointer;">
+            👋 Sapa Pemain
+          </button>
+          <button id="btn-chat-lfg" style="background: #21262d; border: 1px solid #30363d; color: #e6edf3; padding: 5px 10px; border-radius: 6px; font-size: 11px; cursor: pointer;">
+            ⚔️ LFG Boss Fenrir
+          </button>
+          <button id="btn-chat-heal" style="background: #21262d; border: 1px solid #30363d; color: #e6edf3; padding: 5px 10px; border-radius: 6px; font-size: 11px; cursor: pointer;">
+            🧪 Minta Heal
+          </button>
+        </div>
+        <div>
+          <button id="btn-audio-toggle" style="background: #1f6feb; border: none; color: #ffffff; padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer;">
+            🔊 Audio: ON
+          </button>
+        </div>
+      </div>
+
+      <!-- Controls & Features Grid (Responsif Anti-Offside) -->
+      <div style="margin-top: 12px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; width: 100%; box-sizing: border-box;">
+        <div style="background: #161b22; padding: 12px 14px; border-radius: 6px; border: 1px solid #30363d; font-size: 12px; line-height: 1.6;">
+          <div style="font-weight: 600; color: #79c0ff; margin-bottom: 6px;">🎮 Controls & Combat Guide:</div>
+          <div><strong style="color: #e6edf3;">[W, A, S, D]</strong> or <strong style="color: #e6edf3;">[Panah]</strong>: Jalan 8 Arah (Normalisasi diagonal)</div>
+          <div><strong style="color: #e6edf3;">[Space]</strong> or <strong style="color: #e6edf3;">[J]</strong>: Basic Attack Tebasan Pedang</div>
+          <div><strong style="color: #e6edf3;">[K]</strong> or <strong style="color: #e6edf3;">[1]</strong>: Whirlwind Slash (20 MP, 75px Area, 2.2x Damage)</div>
+          <div><strong style="color: #e6edf3;">[Q]</strong>: Minum HP Potion (+50 HP) | <strong style="color: #e6edf3;">[E]</strong>: MP Potion (+35 MP)</div>
+        </div>
+        <div style="background: #161b22; padding: 12px 14px; border-radius: 6px; border: 1px solid #30363d; font-size: 12px; color: #8b949e; line-height: 1.5;">
+          <div style="font-weight: 600; color: #e3b341; margin-bottom: 4px;">✨ Simulated MMO Features:</div>
+          <div>- Bot otonom (Valkyrie, ShadowBlade, Merlin, HealerKun) berburu dan chatting.</div>
+          <div>- Depth Y-Sorting: Karakter melangkah di depan/belakang pohon secara alami.</div>
+          <div>- Loot Drops & Quests: Monster menjatuhkan koin & ramuan saat dikalahkan.</div>
+        </div>
       </div>
     </div>
   </div>
@@ -119,13 +143,20 @@ const upsEl = document.querySelector<HTMLSpanElement>('#ups-val')!;
 const playerLvlEl = document.querySelector<HTMLDivElement>('#player-lvl')!;
 const playerGoldEl = document.querySelector<HTMLDivElement>('#player-gold')!;
 const entitiesEl = document.querySelector<HTMLDivElement>('#entities-val')!;
+const btnAudioToggle = document.querySelector<HTMLButtonElement>('#btn-audio-toggle')!;
+const btnChatWave = document.querySelector<HTMLButtonElement>('#btn-chat-wave')!;
+const btnChatLfg = document.querySelector<HTMLButtonElement>('#btn-chat-lfg')!;
+const btnChatHeal = document.querySelector<HTMLButtonElement>('#btn-chat-heal')!;
 
 // ============================================================================
-// 2. INISIALISASI ECS & ENGINE MANAGERS
+// 2. INISIALISASI ENGINE & MANAGERS
 // ============================================================================
 
 const input = new InputManager();
 const chatManager = new ChatManager();
+const questManager = new QuestManager();
+const lootSystem = new LootSystem();
+const soundSynth = new SoundSynthesizer({ enabled: true, volume: 0.3 });
 const world = new World();
 
 const camera = new Camera2D({
@@ -149,15 +180,49 @@ const mmoRenderSystem = new MMORenderSystem(
   camera,
   WORLD_WIDTH,
   WORLD_HEIGHT,
-  chatManager
+  chatManager,
+  questManager
 );
 
-// Kirim pesan sambutan di chat MMO
+// Event listener Audio Toggle
+btnAudioToggle.addEventListener('click', () => {
+  soundSynth.initContext();
+  const isMuted = soundSynth.toggleMute();
+  btnAudioToggle.textContent = isMuted ? '🔇 Audio: OFF' : '🔊 Audio: ON';
+  btnAudioToggle.style.background = isMuted ? '#6e7681' : '#1f6feb';
+});
+
+// Event listener Quick Emotes
+btnChatWave.addEventListener('click', () => {
+  soundSynth.initContext();
+  chatManager.addMessage('Hero (You)', 'Greetings, fellow adventurers!', 'player');
+  setTimeout(() => {
+    chatManager.addMessage('HealerKun', 'May the light guide your blade, Hero!', 'other_player');
+  }, 1000);
+});
+
+btnChatLfg.addEventListener('click', () => {
+  soundSynth.initContext();
+  chatManager.addMessage('Hero (You)', 'Looking for party to hunt Alpha Wolf Fenrir!', 'player');
+  setTimeout(() => {
+    chatManager.addMessage('Valkyrie', 'Count me in! Regrouping at Wolf Woods!', 'other_player');
+  }, 1200);
+});
+
+btnChatHeal.addEventListener('click', () => {
+  soundSynth.initContext();
+  chatManager.addMessage('Hero (You)', 'Need healing or extra potions!', 'player');
+  setTimeout(() => {
+    chatManager.addMessage('HealerKun', 'Stay behind me! Using Blessing of Life!', 'other_player');
+  }, 900);
+});
+
+// Pesan sambutan
 chatManager.addMessage('System', 'Welcome to Emerald Sanctuary! Simulated MMO World initialized.', 'system');
-chatManager.addMessage('System', 'Defeat monsters to earn EXP & Gold. Beware of Alpha Wolf Fenrir!', 'system');
+chatManager.addMessage('System', 'Defeat monsters to complete Quests and earn EXP & Loot!', 'system');
 
 // ============================================================================
-// 3. GENERASI DUNIA GAME (TREES, ROCKS, ENVIRONMENT)
+// 3. GENERASI LINGKUNGAN DUNIA (TREES & ROCKS)
 // ============================================================================
 
 interface RespawnRecord {
@@ -170,13 +235,10 @@ interface RespawnRecord {
 
 const deadMonsters: RespawnRecord[] = [];
 
-/**
- * Membuat objek pohon dengan collision di alas batang dan kanopi rindang.
- */
 function createTree(x: number, y: number): Entity {
   const tree = world.createEntity();
   world.addComponent(tree, new TransformComponent(x, y));
-  // Collider hanya diletakkan di pangkal batang (bawah) agar karakter bisa berjalan di belakang kanopi!
+  // Collider diletakkan di pangkal batang agar karakter bisa berjalan di balik kanopi daun
   world.addComponent(tree, new ColliderComponent(28, 22, 18, 52, true));
   world.addComponent(tree, new SolidObstacleComponent());
   world.addComponent(
@@ -186,9 +248,6 @@ function createTree(x: number, y: number): Entity {
   return tree;
 }
 
-/**
- * Membuat bongkahan batu granit padat.
- */
 function createRock(x: number, y: number): Entity {
   const rock = world.createEntity();
   world.addComponent(rock, new TransformComponent(x, y));
@@ -201,7 +260,7 @@ function createRock(x: number, y: number): Entity {
   return rock;
 }
 
-// Batas pagar pohon mengelilingi dunia game
+// Batas perimeter pohon mengelilingi dunia game
 for (let x = 0; x < WORLD_WIDTH; x += 64) {
   createTree(x, 0);
   createTree(x, WORLD_HEIGHT - 88);
@@ -211,7 +270,7 @@ for (let y = 60; y < WORLD_HEIGHT - 88; y += 70) {
   createTree(WORLD_WIDTH - 64, y);
 }
 
-// Gugusan pohon dan bebatuan alami di dalam peta
+// Gugusan pohon dan bebatuan alami
 createTree(250, 160);
 createTree(320, 180);
 createTree(220, 240);
@@ -235,7 +294,7 @@ createTree(1950, 340);
 createRock(1900, 450);
 
 // ============================================================================
-// 4. SPAWN PEMAIN UTAMA (MAIN PLAYER)
+// 4. SPAWN PEMAIN UTAMA (HERO)
 // ============================================================================
 
 const player = world.createEntity();
@@ -276,11 +335,10 @@ world.addComponent(
   new MMOVisualComponent({ width: 32, height: 32, visualType: 'player', color: '#3fb950' })
 );
 
-// Posisikan kamera instan di posisi pemain saat start
 camera.follow(400, 350, true);
 
 // ============================================================================
-// 5. SPAWN BOT PEMAIN LAIN (SIMULATED PLAYERS)
+// 5. SPAWN BOT PEMAIN (VALKYRIE, SHADOWBLADE, MERLIN, HEALERKUN)
 // ============================================================================
 
 function createBotPlayer(
@@ -338,13 +396,13 @@ function createBotPlayer(
   return bot;
 }
 
-createBotPlayer(470, 360, 'Valkyrie', 'Swordmaster', 3, '#58a6ff', '#1f6feb');
-createBotPlayer(530, 320, 'ShadowBlade', 'Shadow Rogue', 4, '#bc8cff', '#6e40c9');
-createBotPlayer(340, 390, 'Merlin', 'Archmage', 3, '#7ee787', '#238636');
-createBotPlayer(370, 310, 'HealerKun', 'Cleric', 2, '#f0883e', '#bd561d');
+createBotPlayer(470, 360, 'Valkyrie', 'Swordmaster', 3, '#da3633', '#1f6feb');
+createBotPlayer(530, 320, 'ShadowBlade', 'Shadow Rogue', 4, '#21262d', '#6e40c9');
+createBotPlayer(340, 390, 'Merlin', 'Archmage', 3, '#388bfd', '#1f242c');
+createBotPlayer(370, 310, 'HealerKun', 'Cleric', 2, '#f0f6fc', '#d29922');
 
 // ============================================================================
-// 6. SPAWN MONSTER & WORLD BOSS
+// 6. SPAWN MONSTER & WORLD BOSS FENRIR
 // ============================================================================
 
 function createMonster(
@@ -377,7 +435,7 @@ function createMonster(
       level,
       attack,
       defense: def,
-      exp: isBoss ? 400 : 25 + level * 15,
+      exp: isBoss ? 450 : 25 + level * 15,
       gold: isBoss ? 250 : 15 + level * 8,
     })
   );
@@ -412,32 +470,29 @@ function createMonster(
   return mob;
 }
 
-// Forest Slimes (Level 1 - 2) di dekat spawn
+// Forest Slimes
 createMonster(620, 320, 'Forest Slime', 1, 'slime', '#3fb950');
 createMonster(680, 260, 'Forest Slime', 1, 'slime', '#3fb950');
 createMonster(720, 380, 'Green Ooze', 2, 'slime', '#2ea043');
 createMonster(800, 310, 'Green Ooze', 2, 'slime', '#2ea043');
 
-// Forest Goblins (Level 3 - 4) di Lembah Goblin
+// Goblin Glade
 createMonster(1080, 520, 'Goblin Scout', 3, 'goblin', '#d29922');
 createMonster(1160, 580, 'Goblin Raider', 3, 'goblin', '#bf8700');
 createMonster(1240, 500, 'Goblin Berserker', 4, 'goblin', '#9e6a03');
 
-// Dire Wolves (Level 4 - 5) di Hutan Serigala
+// Wolf Woods
 createMonster(1540, 280, 'Timber Wolf', 4, 'wolf', '#8b949e');
 createMonster(1620, 350, 'Dire Wolf', 5, 'wolf', '#6e7681');
 createMonster(1700, 290, 'Dire Wolf Alpha', 5, 'wolf', '#545d68');
 
-// World Boss: Alpha Wolf Fenrir (Level 7)
-createMonster(1950, 680, 'Alpha Wolf Fenrir', 7, 'boss', '#8957e5', 54, 54);
+// World Boss: Alpha Wolf Fenrir
+createMonster(1950, 680, 'Alpha Wolf Fenrir', 7, 'boss', '#3d1f5e', 54, 54);
 
 // ============================================================================
-// 7. GAME LOOP & INTERAKSI INPUT
+// 7. GAME LOOP & INTERAKSI
 // ============================================================================
 
-/**
- * Mencari monster terdekat dengan target position dalam radius tertentu.
- */
 function findNearestMonster(
   fromX: number,
   fromY: number,
@@ -463,7 +518,6 @@ function findNearestMonster(
   return best;
 }
 
-// Inisialisasi GameLoop deterministik
 const loop = new GameLoop({
   update: (fixedDt: number) => {
     const playerTrans = world.getComponent(player, TransformComponent);
@@ -494,21 +548,25 @@ const loop = new GameLoop({
       // 2. Aksi Tempur: Basic Attack (Space / J)
       if (input.isActionJustPressed('attack') && playerCombat) {
         playerCombat.isAttacking = true;
-        const target = findNearestMonster(playerTrans.x + 16, playerTrans.y + 16, playerCombat.attackRange + 12);
+        soundSynth.playAttack();
+
+        const target = findNearestMonster(playerTrans.x + 16, playerTrans.y + 16, playerCombat.attackRange + 14);
         if (target) {
           combatSystem.executeBasicAttack(world, player, target.entity);
+          soundSynth.playHit();
         }
       }
 
-      // 3. Aksi Tempur: Whirlwind Slash Skill (K / 1)
+      // 3. Aksi Tempur: Whirlwind Slash (K / 1)
       if (input.isActionJustPressed('skill') && playerCombat) {
         const target = findNearestMonster(playerTrans.x + 16, playerTrans.y + 16, playerCombat.skillRange);
         if (target) {
           combatSystem.executeSkill(world, player, target.entity);
+          soundSynth.playWhirlwind();
         } else if (playerStats.mp >= playerCombat.skillCostMp && playerCombat.currentSkillCooldown <= 0) {
-          // Whirlwind kosong
           playerStats.mp -= playerCombat.skillCostMp;
           playerCombat.currentSkillCooldown = playerCombat.skillCooldown;
+          soundSynth.playWhirlwind();
           combatSystem.spawnFloatingText(
             world,
             playerTrans.x + 6,
@@ -523,11 +581,13 @@ const loop = new GameLoop({
       // 4. Minum Potion (Q = HP, E = MP)
       if (input.isActionJustPressed('potionHp')) {
         if (combatSystem.useHpPotion(playerStats)) {
+          soundSynth.playPotion();
           combatSystem.spawnFloatingText(world, playerTrans.x + 6, playerTrans.y - 14, '+50 HP', '#3fb950', false);
         }
       }
       if (input.isActionJustPressed('potionMp')) {
         if (combatSystem.useMpPotion(playerStats)) {
+          soundSynth.playPotion();
           combatSystem.spawnFloatingText(world, playerTrans.x + 6, playerTrans.y - 14, '+35 MP', '#1f6feb', false);
         }
       }
@@ -540,10 +600,13 @@ const loop = new GameLoop({
     // 6. Update Pergerakan Fisika Top-Down (Sliding Collisions)
     topDownMovementSystem.update(world, fixedDt);
 
-    // 7. Update Cooldown & Floating Text Combat
+    // 7. Update Loot Drops & Auto Pickup
+    lootSystem.update(world, player, fixedDt, combatSystem, chatManager, soundSynth);
+
+    // 8. Update Cooldown & Floating Text Combat
     combatSystem.update(world, fixedDt);
 
-    // 8. Evaluasi Kematian Monster, Pemberian Hadiah & Jadwal Respawn
+    // 9. Evaluasi Kematian Monster, Drop Loot & Progres Quest
     const monsterEntities = world.query(MonsterAIComponent, StatsComponent, TransformComponent);
     for (const m of monsterEntities) {
       const mStats = world.getComponent(m, StatsComponent);
@@ -552,25 +615,46 @@ const loop = new GameLoop({
       const mAi = world.getComponent(m, MonsterAIComponent);
 
       if (mStats && mTrans && mStats.hp <= 0 && mAi) {
-        // Monster tewas: Beri reward ke player jika dekat
-        if (playerTrans && playerStats) {
-          const distToPlayer = Math.hypot(mTrans.x - playerTrans.x, mTrans.y - playerTrans.y);
-          if (distToPlayer <= 280) {
-            const expGained = mStats.exp > 0 ? mStats.exp : 30;
-            const goldGained = mStats.gold > 0 ? mStats.gold : 20;
+        // Drop Loot di tanah
+        const lootX = mTrans.x;
+        const lootY = mTrans.y;
 
-            playerStats.gold += goldGained;
-            combatSystem.rewardExp(world, player, expGained);
-
-            chatManager.addMessage(
-              'Combat',
-              `You defeated ${mPlate?.name ?? 'Monster'}! (+${expGained} EXP, +${goldGained} G)`,
-              'system'
-            );
+        if (mStats.level >= 7) {
+          // World Boss Drop
+          lootSystem.spawnLoot(world, lootX, lootY, {
+            itemName: 'Fenrir Crest',
+            itemType: 'equipment',
+            value: 1,
+            statBonus: { attack: 10, defense: 5, maxHp: 40 },
+          });
+          lootSystem.spawnLoot(world, lootX + 24, lootY, {
+            itemName: 'Gold Hoard',
+            itemType: 'gold',
+            value: 200,
+          });
+        } else {
+          // Regular mob drop: Gold pouch atau potion
+          if (Math.random() < 0.6) {
+            lootSystem.spawnLoot(world, lootX, lootY, {
+              itemName: 'Gold Pouch',
+              itemType: 'gold',
+              value: 15 + mStats.level * 10,
+            });
+          } else {
+            lootSystem.spawnLoot(world, lootX, lootY, {
+              itemName: 'Health Potion',
+              itemType: 'potion_hp',
+              value: 1,
+            });
           }
         }
 
-        // Catat untuk respawn setelah 5 detik
+        // Cek progres quest
+        if (mPlate) {
+          questManager.onMonsterKilled(mPlate.name, world, player, combatSystem, chatManager, soundSynth);
+        }
+
+        // Catat jadwal respawn setelah 5 detik
         deadMonsters.push({
           entity: m,
           respawnTimer: 5.0,
@@ -579,7 +663,7 @@ const loop = new GameLoop({
           maxHp: mStats.maxHp,
         });
 
-        // Pindahkan monster jauh ke luar pandangan sementara waktu
+        // Sembunyikan monster sementara
         mTrans.x = -9999;
         mTrans.y = -9999;
         mTrans.prevX = -9999;
@@ -587,7 +671,7 @@ const loop = new GameLoop({
       }
     }
 
-    // 9. Proses Timer Respawn Monster
+    // 10. Proses Timer Respawn Monster
     for (let i = deadMonsters.length - 1; i >= 0; i--) {
       const record = deadMonsters[i];
       record.respawnTimer -= fixedDt;
@@ -612,20 +696,17 @@ const loop = new GameLoop({
       }
     }
 
-    // 10. Kamera Mengikuti Pemain Utama
+    // 11. Kamera Mengikuti Pemain Utama
     if (playerTrans) {
       camera.follow(playerTrans.x + 16, playerTrans.y + 16);
     }
 
-    // Akhiri frame input
     input.endFrame();
   },
 
   render: (alpha: number) => {
-    // Render dunia top-down, depth sorting, dan HUD
     mmoRenderSystem.render(world, alpha, player);
 
-    // Update metrik ke dashboard HTML
     fpsEl.textContent = loop.fps.toString();
     upsEl.textContent = loop.ups.toString();
     entitiesEl.textContent = mmoRenderSystem.visibleEntitiesCount.toString();
