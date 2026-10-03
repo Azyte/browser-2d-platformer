@@ -169,4 +169,23 @@ export class SoundSynthesizer {
     if (this.headless || !this.isEnabled || this.isMuted) return;
     this.playTone(987.77, 0.08, 'sine', 1318.51); // B5 ke E6
   }
+
+  /**
+   * Efek transaksi toko belanja atau penjualan barang (Shop Transaction Chime).
+   */
+  public playShopTransaction(): void {
+    if (this.headless || !this.isEnabled || this.isMuted) return;
+    // Gemerincing koin ganda di meja pedagang
+    this.playTone(880.0, 0.09, 'sine', undefined, 0.0);
+    this.playTone(1318.51, 0.16, 'triangle', undefined, 0.08);
+  }
+
+  /**
+   * Nada peringatan jika saldo gold kurang atau tas penuh (Error / Warning Tone).
+   */
+  public playErrorTone(): void {
+    if (this.headless || !this.isEnabled || this.isMuted) return;
+    this.playTone(160, 0.18, 'sawtooth', 110);
+  }
 }
+

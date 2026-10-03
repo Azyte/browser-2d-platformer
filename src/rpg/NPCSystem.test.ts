@@ -127,4 +127,26 @@ describe('NPCSystem & Dialogue', () => {
     expect(npcSystem.isDialogueOpen).toBe(false);
     expect(npcSystem.activeNPC).toBeNull();
   });
+
+  it('mendukung dialog Pedagang Elric dan aksi open_shop', () => {
+    const player = world.createEntity();
+    world.addComponent(player, new TransformComponent(100, 100));
+    world.addComponent(player, new StatsComponent());
+
+    const merchant = world.createEntity();
+    world.addComponent(merchant, new TransformComponent(110, 100));
+    world.addComponent(
+      merchant,
+      new NPCComponent({
+        npcId: 'merchant_elric',
+        name: 'Merchant Elric',
+        dialogueTree: createElderRowanDialogue(), // tested with tree
+        markerType: 'shop',
+      })
+    );
+
+    npcSystem.startDialogue(merchant, world);
+    expect(npcSystem.isDialogueOpen).toBe(true);
+  });
 });
+

@@ -34,6 +34,8 @@ describe('SoundSynthesizer - Procedural Web Audio Engine', () => {
     expect(() => synth.playLevelUp()).not.toThrow();
     expect(() => synth.playQuestComplete()).not.toThrow();
     expect(() => synth.playLootPickup()).not.toThrow();
+    expect(() => synth.playShopTransaction()).not.toThrow();
+    expect(() => synth.playErrorTone()).not.toThrow();
   });
 
   it('should clamp volume between 0.0 and 1.0', () => {

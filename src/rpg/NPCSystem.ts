@@ -9,7 +9,7 @@ import type { SoundSynthesizer } from '../audio/SoundSynthesizer';
 export interface DialogueOption {
   text: string;
   nextNodeId?: string;
-  action?: 'heal_buff' | 'give_quest' | 'farewell' | 'reward';
+  action?: 'heal_buff' | 'give_quest' | 'farewell' | 'reward' | 'open_shop';
   responseFeedback?: string;
 }
 
@@ -30,7 +30,7 @@ export interface NPCComponentOptions {
   title?: string;
   dialogueTree: DialogueTree;
   interactionRadius?: number;
-  markerType?: 'quest' | 'chat' | 'none';
+  markerType?: 'quest' | 'chat' | 'shop' | 'none';
 }
 
 /**
@@ -45,7 +45,7 @@ export class NPCComponent {
   public interactionRadius: number;
   public currentNodeId: string;
   public hasBlessedPlayer: boolean = false;
-  public markerType: 'quest' | 'chat' | 'none';
+  public markerType: 'quest' | 'chat' | 'shop' | 'none';
 
   constructor(options: NPCComponentOptions) {
     this.npcId = options.npcId;
@@ -56,6 +56,36 @@ export class NPCComponent {
     this.currentNodeId = options.dialogueTree.startNodeId;
     this.markerType = options.markerType ?? 'quest';
   }
+}
+
+/**
+ * Membuat pohon dialog interaktif untuk Pedagang Elric di Sanctuary.
+ */
+export function createMerchantElricDialogue(): DialogueTree {
+  return {
+    startNodeId: 'greeting',
+    nodes: {
+      greeting: {
+        id: 'greeting',
+        npcText:
+          'Selamat datang di Toko Perlengkapan Sanctuary! Saya Elric. Saya menyediakan senjata tempaan terbaik, zirah kokoh, dan ramuan segar untuk petualang.',
+        options: [
+          { text: '1. Buka Toko (Beli & Jual Perlengkapan)', action: 'open_shop' },
+          { text: '2. Barang apa yang paling kamu rekomendasikan?', nextNodeId: 'advice' },
+          { text: '3. Sampai jumpa lagi, Elric.', action: 'farewell' },
+        ],
+      },
+      advice: {
+        id: 'advice',
+        npcText:
+          'Jika kamu hendak berburu di Hutan Utara, pasanglah Zirah Guardian Plate dan bawa pedang tajam Valiant Claymore! Dan jangan lupa sediakan Health Potion cadangan.',
+        options: [
+          { text: '1. Baik, mari buka tokomu sekarang.', action: 'open_shop' },
+          { text: '2. Terima kasih banyak atas sarannya.', action: 'farewell' },
+        ],
+      },
+    },
+  };
 }
 
 /**
@@ -206,15 +236,15 @@ export class NPCSystem {
     chatManager?: ChatManager,
     combatSystem?: CombatSystem,
     soundSynth?: SoundSynthesizer
-  ): void {
-    if (!this.activeNPC || !this.isDialogueOpen) return;
+  ): DialogueOption | null {
+    if (!this.activeNPC || !this.isDialogueOpen) return null;
 
     const npcComp = world.getComponent(this.activeNPC, NPCComponent);
-    if (!npcComp) return;
+    if (!npcComp) return null;
 
     const currentNode = npcComp.dialogueTree.nodes[npcComp.currentNodeId];
     if (!currentNode || optionIndex < 0 || optionIndex >= currentNode.options.length) {
-      return;
+      return null;
     }
 
     const selectedOption = currentNode.options[optionIndex];
@@ -266,10 +296,16 @@ export class NPCSystem {
     }
 
     // Pindah ke node selanjutnya atau tutup dialog
-    if (selectedOption.action === 'farewell' || !selectedOption.nextNodeId) {
+    if (
+      selectedOption.action === 'farewell' ||
+      selectedOption.action === 'open_shop' ||
+      !selectedOption.nextNodeId
+    ) {
       this.closeDialogue();
     } else {
       npcComp.currentNodeId = selectedOption.nextNodeId;
     }
+
+    return selectedOption;
   }
 }

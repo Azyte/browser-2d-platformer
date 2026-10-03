@@ -16,6 +16,7 @@ import { NPCComponent, type NPCSystem } from './NPCSystem';
 import { InventoryComponent } from './InventorySystem';
 import type { DayNightSystem, LightSource } from './DayNightSystem';
 import { SimulatedPlayerComponent } from './RPGComponents';
+import type { ShopSystem } from './ShopSystem';
 
 export type MMOVisualType =
   | 'player'
@@ -135,7 +136,8 @@ export class MMORenderSystem implements System {
     private readonly chatManager?: ChatManager,
     private readonly questManager?: QuestManager,
     private readonly npcSystem?: NPCSystem,
-    private readonly dayNightSystem?: DayNightSystem
+    private readonly dayNightSystem?: DayNightSystem,
+    private readonly shopSystem?: ShopSystem
   ) {}
 
   /**
@@ -225,7 +227,7 @@ export class MMORenderSystem implements System {
     // 5. Render HUD Statis di Layar Browser (Screen Space)
     this.renderHUD(ctx, world, mainPlayerEntity);
 
-    // 6. Render Overlays: Modal Dialog NPC & Modal Inventaris Tas
+    // 6. Render Overlays: Modal Dialog NPC, Modal Inventaris Tas, & Modal Toko Pedagang
     if (this.npcSystem && this.npcSystem.isDialogueOpen) {
       this.renderDialogueModal(ctx, world);
     }
@@ -235,6 +237,9 @@ export class MMORenderSystem implements System {
       const stats = world.getComponent(mainPlayerEntity, StatsComponent);
       if (inv && inv.isOpen && stats) {
         this.renderInventoryModal(ctx, inv, stats);
+      }
+      if (this.shopSystem && this.shopSystem.isOpen && stats && inv) {
+        this.renderShopModal(ctx, this.shopSystem, stats, inv);
       }
     }
   }
@@ -593,52 +598,111 @@ export class MMORenderSystem implements System {
       }
 
       case 'npc': {
-        // NPC Tetua Rowan: Jubah hijau zamrud & emas, jenggot putih, tongkat kayu ek, permata penuntun
-        ctx.fillStyle = '#1b4d3e';
-        ctx.fillRect(rx + 5, ry + 6, w - 10, h - 7);
+        const isMerchant =
+          visual.label?.toLowerCase().includes('elric') ||
+          nameplate?.name.toLowerCase().includes('elric') ||
+          visual.color === '#6e40c9';
 
-        // Selendang amber emas
-        ctx.fillStyle = '#e3b341';
-        ctx.fillRect(rx + 8, ry + 8, w - 16, 4);
+        if (isMerchant) {
+          // NPC Pedagang Elric: Jubah ungu mewah, sorban pedagang, kumis, peti koin
+          ctx.fillStyle = '#4c2882';
+          ctx.fillRect(rx + 5, ry + 6, w - 10, h - 7);
 
-        // Wajah bijak & jenggot putih panjang
-        ctx.fillStyle = '#ffe0bd';
-        ctx.fillRect(rx + 10, ry + 5, w - 20, 6);
-        ctx.fillStyle = '#f0f6fc';
-        ctx.fillRect(rx + 9, ry + 11, w - 18, 9);
+          // Rompi sutra ungu kirmisi
+          ctx.fillStyle = '#8957e5';
+          ctx.fillRect(rx + 8, ry + 8, w - 16, 10);
 
-        // Topi tudung bijak
-        ctx.fillStyle = '#0f2f26';
-        ctx.beginPath();
-        ctx.moveTo(rx + 6, ry + 6);
-        ctx.lineTo(cx, ry - 3);
-        ctx.lineTo(rx + w - 6, ry + 6);
-        ctx.fill();
+          // Sabuk kulit gesper emas
+          ctx.fillStyle = '#f0c674';
+          ctx.fillRect(rx + 7, ry + 16, w - 14, 3);
 
-        // Tongkat jalan kayu ek dengan kristal hijau
-        ctx.fillStyle = '#6e401f';
-        ctx.fillRect(rx + w - 4, ry + 3, 3, 22);
-        ctx.fillStyle = '#3fb950';
-        ctx.beginPath();
-        ctx.arc(rx + w - 3, ry + 2, 3.5, 0, Math.PI * 2);
-        ctx.fill();
+          // Wajah ramah & kumis pedagang
+          ctx.fillStyle = '#ffe0bd';
+          ctx.fillRect(rx + 10, ry + 5, w - 20, 6);
+          ctx.fillStyle = '#8c5e32'; // Kumis cokelat
+          ctx.fillRect(rx + 11, ry + 9, w - 22, 2);
 
-        // Floating Quest Marker di atas kepala NPC (Golden '!' bergoyang halus)
-        const markerBounce = Math.sin(this.animTimer * 5) * 3;
-        const iconY = ry - 22 + markerBounce;
+          // Sorban / Topi Pedagang
+          ctx.fillStyle = '#391d63';
+          ctx.beginPath();
+          ctx.arc(cx, ry + 4, 8, Math.PI, Math.PI * 2);
+          ctx.fill();
+          // Permata ruby merah di sorban
+          ctx.fillStyle = '#da3633';
+          ctx.beginPath();
+          ctx.arc(cx, ry + 1, 2.5, 0, Math.PI * 2);
+          ctx.fill();
 
-        ctx.fillStyle = '#e3b341';
-        ctx.beginPath();
-        ctx.arc(cx, iconY, 7, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 1.2;
-        ctx.stroke();
+          // Peti / Kantong Koin di samping
+          ctx.fillStyle = '#d29922';
+          ctx.fillRect(rx + w - 6, ry + 12, 5, 8);
+          ctx.fillStyle = '#f0c674';
+          ctx.fillRect(rx + w - 5, ry + 10, 3, 2);
 
-        ctx.fillStyle = '#161b22';
-        ctx.font = 'bold 10px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText('!', cx, iconY + 3.5);
+          // Floating Shop Marker di atas kepala NPC (Bouncing 'SHOP 💰')
+          const markerBounce = Math.sin(this.animTimer * 5) * 3;
+          const badgeY = ry - 20 + markerBounce;
+
+          ctx.fillStyle = 'rgba(13, 17, 23, 0.9)';
+          ctx.beginPath();
+          ctx.roundRect(cx - 24, badgeY - 7, 48, 14, 4);
+          ctx.fill();
+          ctx.strokeStyle = '#f0c674';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+
+          ctx.fillStyle = '#f0c674';
+          ctx.font = 'bold 8px monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText('SHOP 💰', cx, badgeY + 3.5);
+        } else {
+          // NPC Tetua Rowan: Jubah hijau zamrud & emas, jenggot putih, tongkat kayu ek, permata penuntun
+          ctx.fillStyle = '#1b4d3e';
+          ctx.fillRect(rx + 5, ry + 6, w - 10, h - 7);
+
+          // Selendang amber emas
+          ctx.fillStyle = '#e3b341';
+          ctx.fillRect(rx + 8, ry + 8, w - 16, 4);
+
+          // Wajah bijak & jenggot putih panjang
+          ctx.fillStyle = '#ffe0bd';
+          ctx.fillRect(rx + 10, ry + 5, w - 20, 6);
+          ctx.fillStyle = '#f0f6fc';
+          ctx.fillRect(rx + 9, ry + 11, w - 18, 9);
+
+          // Topi tudung bijak
+          ctx.fillStyle = '#0f2f26';
+          ctx.beginPath();
+          ctx.moveTo(rx + 6, ry + 6);
+          ctx.lineTo(cx, ry - 3);
+          ctx.lineTo(rx + w - 6, ry + 6);
+          ctx.fill();
+
+          // Tongkat jalan kayu ek dengan kristal hijau
+          ctx.fillStyle = '#6e401f';
+          ctx.fillRect(rx + w - 4, ry + 3, 3, 22);
+          ctx.fillStyle = '#3fb950';
+          ctx.beginPath();
+          ctx.arc(rx + w - 3, ry + 2, 3.5, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Floating Quest Marker di atas kepala NPC (Golden '!' bergoyang halus)
+          const markerBounce = Math.sin(this.animTimer * 5) * 3;
+          const iconY = ry - 22 + markerBounce;
+
+          ctx.fillStyle = '#e3b341';
+          ctx.beginPath();
+          ctx.arc(cx, iconY, 7, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 1.2;
+          ctx.stroke();
+
+          ctx.fillStyle = '#161b22';
+          ctx.font = 'bold 10px monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText('!', cx, iconY + 3.5);
+        }
         break;
       }
 
@@ -1339,7 +1403,13 @@ export class MMORenderSystem implements System {
    * Menampilkan prompt interaksi [F] di atas kepala NPC yang sedang didekati pemain.
    */
   private renderNPCInteractionPrompt(world: World, ctx: CanvasRenderingContext2D): void {
-    if (!this.npcSystem || !this.npcSystem.nearbyNPC || this.npcSystem.isDialogueOpen) return;
+    if (
+      !this.npcSystem ||
+      !this.npcSystem.nearbyNPC ||
+      this.npcSystem.isDialogueOpen ||
+      (this.shopSystem && this.shopSystem.isOpen)
+    )
+      return;
 
     const nearbyTrans = world.getComponent(this.npcSystem.nearbyNPC, TransformComponent);
     const nearbyComp = world.getComponent(this.npcSystem.nearbyNPC, NPCComponent);
@@ -1350,7 +1420,9 @@ export class MMORenderSystem implements System {
 
     ctx.save();
     ctx.font = 'bold 10px monospace';
-    const text = `[F] Talk to ${nearbyComp.name}`;
+    const isShop =
+      nearbyComp.markerType === 'shop' || nearbyComp.name.toLowerCase().includes('elric');
+    const text = isShop ? `[F] Belanja (${nearbyComp.name})` : `[F] Talk to ${nearbyComp.name}`;
     const tw = ctx.measureText(text).width;
 
     ctx.fillStyle = 'rgba(13, 17, 23, 0.9)';
@@ -1358,11 +1430,11 @@ export class MMORenderSystem implements System {
     ctx.roundRect(nx - tw / 2 - 8, ny - 10, tw + 16, 18, 5);
     ctx.fill();
 
-    ctx.strokeStyle = '#e3b341';
+    ctx.strokeStyle = isShop ? '#f0c674' : '#e3b341';
     ctx.lineWidth = 1.2;
     ctx.stroke();
 
-    ctx.fillStyle = '#f0c674';
+    ctx.fillStyle = isShop ? '#f0c674' : '#e6edf3';
     ctx.textAlign = 'center';
     ctx.fillText(text, nx, ny + 3);
     ctx.restore();
@@ -1751,6 +1823,246 @@ export class MMORenderSystem implements System {
       ctx.font = '9px monospace';
       ctx.fillText(`[Slot ${selIndex + 1}] Empty Slot: Select another slot or press [I] to close.`, mx + 20, tipY + 26);
     }
+
+    ctx.restore();
+  }
+
+  /**
+   * Merender Modal Toko Pedagang Elric (Beli dan Jual Perlengkapan).
+   */
+  private renderShopModal(
+    ctx: CanvasRenderingContext2D,
+    shop: ShopSystem,
+    stats: StatsComponent,
+    inv: InventoryComponent
+  ): void {
+    const vw = this.camera.viewportWidth;
+    const vh = this.camera.viewportHeight;
+
+    const mw = Math.min(620, vw - 24);
+    const mh = 345;
+    const mx = Math.round((vw - mw) / 2);
+    const my = Math.round((vh - mh) / 2);
+
+    ctx.save();
+
+    // Dim Background Overlay
+    ctx.fillStyle = 'rgba(5, 8, 12, 0.75)';
+    ctx.fillRect(0, 0, vw, vh);
+
+    // Modal Background Window
+    ctx.fillStyle = 'rgba(13, 17, 23, 0.98)';
+    ctx.fillRect(mx, my, mw, mh);
+    ctx.strokeStyle = '#f0c674';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(mx, my, mw, mh);
+
+    // Header Bar
+    ctx.fillStyle = '#161b22';
+    ctx.fillRect(mx, my, mw, 32);
+    ctx.strokeStyle = '#30363d';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(mx, my, mw, 32);
+
+    ctx.fillStyle = '#f0c674';
+    ctx.font = 'bold 12px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('🏪 Toko Pedagang Elric (Sanctuary Merchant)', mx + 12, my + 21);
+
+    // Gold Saldo Player Badge
+    const goldText = `💰 ${stats.gold} G`;
+    ctx.font = 'bold 12px monospace';
+    const gw = ctx.measureText(goldText).width;
+    const gBadgeX = mx + mw - gw - 48;
+    ctx.fillStyle = '#21262d';
+    ctx.beginPath();
+    ctx.roundRect(gBadgeX - 6, my + 5, gw + 12, 22, 4);
+    ctx.fill();
+    ctx.strokeStyle = '#f0883e';
+    ctx.stroke();
+
+    ctx.fillStyle = '#f0c674';
+    ctx.fillText(goldText, gBadgeX, my + 21);
+
+    // Tombol Close [X]
+    ctx.fillStyle = '#da3633';
+    ctx.beginPath();
+    ctx.roundRect(mx + mw - 30, my + 5, 22, 22, 4);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('X', mx + mw - 19, my + 20);
+
+    // Kolom Kiri: Katalog Toko (Beli)
+    const colLeftX = mx + 12;
+    const colLeftY = my + 40;
+    const colLeftW = Math.min(340, mw - 240);
+
+    ctx.fillStyle = '#79c0ff';
+    ctx.font = 'bold 10px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('🛒 Katalog Toko (Beli Barang: [1-5])', colLeftX, colLeftY);
+
+    let cardY = colLeftY + 8;
+    for (let i = 0; i < shop.shopItems.length; i++) {
+      const item = shop.shopItems[i];
+      const canAfford = stats.gold >= item.cost;
+
+      // Card Container
+      ctx.fillStyle = '#21262d';
+      ctx.fillRect(colLeftX, cardY, colLeftW, 46);
+      ctx.strokeStyle = canAfford ? '#388bfd' : '#30363d';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(colLeftX, cardY, colLeftW, 46);
+
+      // Icon Box
+      ctx.fillStyle = '#161b22';
+      ctx.fillRect(colLeftX + 4, cardY + 5, 36, 36);
+      ctx.strokeStyle =
+        item.rarity === 'epic' ? '#a371f7' : item.rarity === 'rare' ? '#388bfd' : '#8b949e';
+      ctx.strokeRect(colLeftX + 4, cardY + 5, 36, 36);
+
+      ctx.font = '16px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(item.icon, colLeftX + 22, cardY + 28);
+
+      // Quick Key Badge
+      ctx.fillStyle = '#e3b341';
+      ctx.font = 'bold 9px monospace';
+      ctx.fillText(`[${i + 1}]`, colLeftX + 12, cardY + 12);
+
+      // Name & Stat Bonus
+      ctx.textAlign = 'left';
+      ctx.font = 'bold 10px monospace';
+      ctx.fillStyle =
+        item.rarity === 'epic' ? '#d2a8ff' : item.rarity === 'rare' ? '#79c0ff' : '#f0f6fc';
+      ctx.fillText(item.name, colLeftX + 46, cardY + 18);
+
+      ctx.font = '9px monospace';
+      if (item.statBonus?.attack) {
+        ctx.fillStyle = '#ff7b72';
+        ctx.fillText(`+${item.statBonus.attack} ATK`, colLeftX + 46, cardY + 34);
+      } else if (item.statBonus?.defense) {
+        ctx.fillStyle = '#79c0ff';
+        ctx.fillText(
+          `+${item.statBonus.defense} DEF +${item.statBonus.maxHp ?? 0} HP`,
+          colLeftX + 46,
+          cardY + 34
+        );
+      } else if (item.statBonus?.maxMp) {
+        ctx.fillStyle = '#bc8cff';
+        ctx.fillText(
+          `+${item.statBonus.maxMp} MP +${item.statBonus.attack ?? 0} ATK`,
+          colLeftX + 46,
+          cardY + 34
+        );
+      } else if (item.healHp) {
+        ctx.fillStyle = '#3fb950';
+        ctx.fillText(`Pulihkan +${item.healHp} HP`, colLeftX + 46, cardY + 34);
+      } else if (item.healMp) {
+        ctx.fillStyle = '#58a6ff';
+        ctx.fillText(`Pulihkan +${item.healMp} MP`, colLeftX + 46, cardY + 34);
+      }
+
+      // Tombol Beli & Harga
+      const btnW = 72;
+      const btnH = 26;
+      const btnX = colLeftX + colLeftW - btnW - 6;
+      const btnY = cardY + 10;
+
+      ctx.fillStyle = canAfford ? '#238636' : '#30363d';
+      ctx.beginPath();
+      ctx.roundRect(btnX, btnY, btnW, btnH, 4);
+      ctx.fill();
+      ctx.strokeStyle = canAfford ? '#3fb950' : '#484f58';
+      ctx.stroke();
+
+      ctx.fillStyle = canAfford ? '#ffffff' : '#8b949e';
+      ctx.font = 'bold 9px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(`${item.cost} G Beli`, btnX + btnW / 2, btnY + 16);
+
+      cardY += 51;
+    }
+
+    // Kolom Kanan: Tas Pemain (Jual)
+    const colRightX = colLeftX + colLeftW + 12;
+    const colRightY = colLeftY;
+    const colRightW = mw - (colLeftW + 36);
+
+    ctx.fillStyle = '#e3b341';
+    ctx.font = 'bold 10px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('🎒 Tas Pemain (Klik [Jual])', colRightX, colRightY);
+
+    let sellY = colRightY + 8;
+    let filledCount = 0;
+
+    for (let i = 0; i < inv.maxSlots; i++) {
+      const item = inv.slots[i];
+      if (!item) continue;
+      filledCount++;
+      if (filledCount > 5) break;
+
+      const sellPrice = shop.getItemSellPrice(item);
+
+      // Card Container Jual
+      ctx.fillStyle = '#161b22';
+      ctx.fillRect(colRightX, sellY, colRightW, 46);
+      ctx.strokeStyle = '#30363d';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(colRightX, sellY, colRightW, 46);
+
+      // Nama Item & Qty
+      ctx.fillStyle = '#f0f6fc';
+      ctx.font = 'bold 9px monospace';
+      ctx.textAlign = 'left';
+      const displayName = item.name.length > 11 ? item.name.slice(0, 10) + '..' : item.name;
+      ctx.fillText(`${displayName} x${item.quantity}`, colRightX + 6, sellY + 18);
+
+      // Nilai Jual
+      ctx.fillStyle = '#3fb950';
+      ctx.font = '9px monospace';
+      ctx.fillText(`+${sellPrice} G`, colRightX + 6, sellY + 34);
+
+      // Tombol Jual
+      const sBtnW = 54;
+      const sBtnH = 24;
+      const sBtnX = colRightX + colRightW - sBtnW - 6;
+      const sBtnY = sellY + 11;
+
+      ctx.fillStyle = '#9e6a03';
+      ctx.beginPath();
+      ctx.roundRect(sBtnX, sBtnY, sBtnW, sBtnH, 4);
+      ctx.fill();
+      ctx.strokeStyle = '#d29922';
+      ctx.stroke();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 9px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('Jual', sBtnX + sBtnW / 2, sBtnY + 15);
+
+      sellY += 51;
+    }
+
+    if (filledCount === 0) {
+      ctx.fillStyle = '#6e7681';
+      ctx.font = 'italic 10px monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText('(Tas kosong, tidak ada barang untuk dijual)', colRightX + 6, colRightY + 28);
+    }
+
+    // Footer Info
+    ctx.fillStyle = '#8b949e';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(
+      '💡 Kumpulkan Gold dari Monster & Quest | [Escape] Tutup Toko',
+      mx + mw / 2,
+      my + mh - 10
+    );
 
     ctx.restore();
   }

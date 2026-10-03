@@ -25,8 +25,9 @@ import { QuestManager } from './rpg/QuestSystem';
 import { LootSystem } from './rpg/LootSystem';
 import { SoundSynthesizer } from './audio/SoundSynthesizer';
 import { DebugRenderSystem } from './render/DebugRenderSystem';
-import { NPCComponent, NPCSystem, createElderRowanDialogue } from './rpg/NPCSystem';
+import { NPCComponent, NPCSystem, createElderRowanDialogue, createMerchantElricDialogue } from './rpg/NPCSystem';
 import { InventoryComponent, InventorySystem, createStarterInventory } from './rpg/InventorySystem';
+import { ShopSystem } from './rpg/ShopSystem';
 import { DayNightSystem } from './rpg/DayNightSystem';
 import type { Entity } from './ecs/Entity';
 
@@ -170,14 +171,15 @@ app.innerHTML = `
           <div style="font-weight: 600; color: #79c0ff; margin-bottom: 6px;">🎮 Keyboard & Gamepad:</div>
           <div><strong style="color: #e6edf3;">[W, A, S, D]</strong>: Jalan 8 Arah (Normalisasi diagonal)</div>
           <div><strong style="color: #e6edf3;">[Space / J]</strong>: Basic Attack | <strong style="color: #e6edf3;">[K / 1]</strong>: Whirlwind Slash</div>
-          <div><strong style="color: #e6edf3;">[F]</strong>: Bicara dengan NPC (Tetua Rowan) / Dialog Interaktif</div>
+          <div><strong style="color: #e6edf3;">[F]</strong>: Bicara (Tetua Rowan) / Buka Toko (Pedagang Elric)</div>
           <div><strong style="color: #e6edf3;">[I / B]</strong>: Buka/Tutup Tas & Equipment Modal</div>
-          <div><strong style="color: #e6edf3;">[1-3]</strong>: Opsi Dialog | <strong style="color: #e6edf3;">[Q / E]</strong>: Minum HP/MP Potion</div>
-          <div><strong style="color: #e6edf3;">[F3]</strong>: Toggle Engine Debug Hitboxes & AI Radar</div>
+          <div><strong style="color: #e6edf3;">[1-5]</strong>: Beli Cepat Toko | <strong style="color: #e6edf3;">[1-3]</strong>: Opsi Dialog</div>
+          <div><strong style="color: #e6edf3;">[Q / E]</strong>: Minum HP/MP Potion | <strong style="color: #e6edf3;">[F3]</strong>: Toggle Hitbox & Radar</div>
         </div>
         <div style="background: #161b22; padding: 12px 14px; border-radius: 6px; border: 1px solid #30363d; font-size: 12px; color: #8b949e; line-height: 1.5;">
           <div style="font-weight: 600; color: #e3b341; margin-bottom: 4px;">✨ Fitur Unggulan Engine:</div>
-          <div>- Dialog Interaktif: Bicara dengan Tetua Rowan untuk berkah & petunjuk.</div>
+          <div>- Toko & Gold Economy: Belanja senjata, zirah, dan ramuan ke Pedagang Elric.</div>
+          <div>- Dialog Interaktif: Bicara dengan Tetua Rowan untuk berkah & lore dunia.</div>
           <div>- Visual Inventory & Equipment: Kelola tas dan gear secara real-time.</div>
           <div>- Day/Night & Radial Lighting: Siklus dinamis dengan lentera obor.</div>
           <div>- Depth Y-Sorting: Karakter melangkah di depan/belakang pohon & NPC.</div>
@@ -229,6 +231,7 @@ const questManager = new QuestManager();
 const lootSystem = new LootSystem();
 const npcSystem = new NPCSystem();
 const inventorySystem = new InventorySystem();
+const shopSystem = new ShopSystem();
 const dayNightSystem = new DayNightSystem({ cycleDurationSeconds: 180, initialHour: 10.0 });
 const soundSynth = new SoundSynthesizer({ enabled: true, volume: 0.3 });
 const debugSystem = new DebugRenderSystem();
@@ -258,7 +261,8 @@ const mmoRenderSystem = new MMORenderSystem(
   chatManager,
   questManager,
   npcSystem,
-  dayNightSystem
+  dayNightSystem,
+  shopSystem
 );
 
 // Toggle Debug Overlay
@@ -481,6 +485,40 @@ world.addComponent(
   new MMOVisualComponent({ width: 32, height: 32, visualType: 'npc', color: '#1b4d3e' })
 );
 
+// ============================================================================
+// 4c. SPAWN NPC PEDAGANG (MERCHANT ELRIC)
+// ============================================================================
+
+const merchantElric = world.createEntity();
+world.addComponent(merchantElric, new TransformComponent(340, 310));
+world.addComponent(merchantElric, new ColliderComponent(24, 24, 4, 4, true));
+world.addComponent(merchantElric, new SolidObstacleComponent());
+world.addComponent(
+  merchantElric,
+  new NPCComponent({
+    npcId: 'merchant_elric',
+    name: 'Merchant Elric',
+    title: 'Sanctuary Trader',
+    dialogueTree: createMerchantElricDialogue(),
+    interactionRadius: 65,
+    markerType: 'shop',
+  })
+);
+world.addComponent(
+  merchantElric,
+  new NameplateComponent('Merchant Elric', 'npc', 'Sanctuary Trader', false)
+);
+world.addComponent(
+  merchantElric,
+  new MMOVisualComponent({
+    width: 32,
+    height: 32,
+    visualType: 'npc',
+    color: '#6e40c9',
+    label: 'Elric',
+  })
+);
+
 function createBotPlayer(
   x: number,
   y: number,
@@ -693,8 +731,8 @@ const loop = new GameLoop({
 
     // 1. Kontrol Pergerakan Pemain (WASD / Arrows / Touch D-pad)
     if (playerTrans && playerVel && playerStats && playerStats.hp > 0) {
-      if (npcSystem.isDialogueOpen) {
-        // Kunci posisi pemain saat sedang berdialog dengan NPC
+      if (npcSystem.isDialogueOpen || shopSystem.isOpen) {
+        // Kunci posisi pemain saat sedang berdialog atau membuka toko
         playerVel.vx = 0;
         playerVel.vy = 0;
       } else {
@@ -717,13 +755,24 @@ const loop = new GameLoop({
         }
       }
 
-      // 2. Aksi Interaksi NPC: Bicara / Lanjut Dialog (F / Touch TALK)
+      // 2. Aksi Interaksi NPC: Bicara / Buka Toko (F / Touch TALK)
       if (input.isActionJustPressed('interact')) {
-        if (npcSystem.isDialogueOpen) {
+        if (shopSystem.isOpen) {
+          shopSystem.close();
+        } else if (npcSystem.isDialogueOpen) {
           npcSystem.closeDialogue();
         } else if (npcSystem.nearbyNPC) {
-          npcSystem.startDialogue(npcSystem.nearbyNPC, world);
-          soundSynth.playQuestComplete();
+          const nearbyComp = world.getComponent(npcSystem.nearbyNPC, NPCComponent);
+          if (
+            nearbyComp &&
+            (nearbyComp.markerType === 'shop' || nearbyComp.name.toLowerCase().includes('elric'))
+          ) {
+            shopSystem.toggle();
+            soundSynth.playShopTransaction();
+          } else {
+            npcSystem.startDialogue(npcSystem.nearbyNPC, world);
+            soundSynth.playQuestComplete();
+          }
         }
       }
 
@@ -737,7 +786,12 @@ const loop = new GameLoop({
       }
 
       // 4. Aksi Tempur: Basic Attack (Space / J / Touch ATK)
-      if (input.isActionJustPressed('attack') && playerCombat && !npcSystem.isDialogueOpen) {
+      if (
+        input.isActionJustPressed('attack') &&
+        playerCombat &&
+        !npcSystem.isDialogueOpen &&
+        !shopSystem.isOpen
+      ) {
         playerCombat.isAttacking = true;
         soundSynth.playAttack();
 
@@ -749,7 +803,12 @@ const loop = new GameLoop({
       }
 
       // 5. Aksi Tempur: Whirlwind Slash (K / 1 / Touch SKILL)
-      if (input.isActionJustPressed('skill') && playerCombat && !npcSystem.isDialogueOpen) {
+      if (
+        input.isActionJustPressed('skill') &&
+        playerCombat &&
+        !npcSystem.isDialogueOpen &&
+        !shopSystem.isOpen
+      ) {
         const target = findNearestMonster(playerTrans.x + 16, playerTrans.y + 16, playerCombat.skillRange);
         if (target) {
           combatSystem.executeSkill(world, player, target.entity);
@@ -916,6 +975,9 @@ const loop = new GameLoop({
 
 window.addEventListener('keydown', (e) => {
   if (e.code === 'Escape') {
+    if (shopSystem.isOpen) {
+      shopSystem.close();
+    }
     if (npcSystem.isDialogueOpen) {
       npcSystem.closeDialogue();
     }
@@ -925,14 +987,56 @@ window.addEventListener('keydown', (e) => {
     }
   }
 
-  // Angka 1-3 saat Dialog Terbuka
-  if (npcSystem.isDialogueOpen) {
+  // Angka 1-5 saat Toko Pedagang Terbuka (Quick-Buy)
+  if (shopSystem.isOpen) {
+    const match = e.code.match(/Digit([1-5])/);
+    if (match) {
+      const idx = parseInt(match[1], 10) - 1;
+      if (idx >= 0 && idx < shopSystem.shopItems.length) {
+        const item = shopSystem.shopItems[idx];
+        const res = shopSystem.buyItem(world, player, item.id);
+        const pTrans = world.getComponent(player, TransformComponent);
+        if (res.success) {
+          soundSynth.playShopTransaction();
+          if (pTrans) {
+            combatSystem.spawnFloatingText(
+              world,
+              pTrans.x + 8,
+              pTrans.y - 20,
+              `+${item.name}`,
+              '#f0c674',
+              true
+            );
+          }
+          chatManager.addMessage('Toko', res.message, 'system');
+        } else {
+          soundSynth.playErrorTone();
+          if (pTrans) {
+            combatSystem.spawnFloatingText(
+              world,
+              pTrans.x + 8,
+              pTrans.y - 20,
+              res.message,
+              '#ff7b72',
+              false
+            );
+          }
+        }
+      }
+    }
+  } else if (npcSystem.isDialogueOpen) {
+    // Angka 1-3 saat Dialog Terbuka
+    let chosen = null;
     if (e.code === 'Digit1' || e.code === 'Numpad1') {
-      npcSystem.chooseOption(0, world, player, chatManager, combatSystem, soundSynth);
+      chosen = npcSystem.chooseOption(0, world, player, chatManager, combatSystem, soundSynth);
     } else if (e.code === 'Digit2' || e.code === 'Numpad2') {
-      npcSystem.chooseOption(1, world, player, chatManager, combatSystem, soundSynth);
+      chosen = npcSystem.chooseOption(1, world, player, chatManager, combatSystem, soundSynth);
     } else if (e.code === 'Digit3' || e.code === 'Numpad3') {
-      npcSystem.chooseOption(2, world, player, chatManager, combatSystem, soundSynth);
+      chosen = npcSystem.chooseOption(2, world, player, chatManager, combatSystem, soundSynth);
+    }
+    if (chosen?.action === 'open_shop') {
+      shopSystem.open();
+      soundSynth.playShopTransaction();
     }
   } else {
     // Angka 1-8 saat Inventaris Terbuka
@@ -957,7 +1061,7 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
-// Penanganan Klik Mouse / Sentuhan pada Canvas untuk Dialog & Inventaris
+// Penanganan Klik Mouse / Sentuhan pada Canvas untuk Dialog, Inventaris & Toko
 canvas.addEventListener('click', (e) => {
   soundSynth.initContext();
   const rect = canvas.getBoundingClientRect();
@@ -976,11 +1080,134 @@ canvas.addEventListener('click', (e) => {
     const node = npcSystem.getCurrentNode(world);
     if (node) {
       for (let i = 0; i < node.options.length; i++) {
-        if (clickX >= mx + 72 && clickX <= mx + mw - 18 && clickY >= optY - 11 && clickY <= optY + 7) {
-          npcSystem.chooseOption(i, world, player, chatManager, combatSystem, soundSynth);
+        if (
+          clickX >= mx + 72 &&
+          clickX <= mx + mw - 18 &&
+          clickY >= optY - 11 &&
+          clickY <= optY + 7
+        ) {
+          const chosen = npcSystem.chooseOption(
+            i,
+            world,
+            player,
+            chatManager,
+            combatSystem,
+            soundSynth
+          );
+          if (chosen?.action === 'open_shop') {
+            shopSystem.open();
+            soundSynth.playShopTransaction();
+          }
           return;
         }
         optY += 18;
+      }
+    }
+    return;
+  }
+
+  // 1b. Klik pada Modal Toko Pedagang Elric (Beli & Jual)
+  if (shopSystem.isOpen) {
+    const mw = Math.min(620, CANVAS_WIDTH - 24);
+    const mh = 345;
+    const mx = Math.round((CANVAS_WIDTH - mw) / 2);
+    const my = Math.round((CANVAS_HEIGHT - mh) / 2);
+
+    // Klik tombol close [X] di pojok kanan header
+    if (clickX >= mx + mw - 35 && clickX <= mx + mw && clickY >= my && clickY <= my + 32) {
+      shopSystem.close();
+      return;
+    }
+
+    const pTrans = world.getComponent(player, TransformComponent);
+
+    // Klik Beli Barang di Kolom Kiri
+    const colLeftX = mx + 12;
+    const colLeftY = my + 40;
+    const colLeftW = Math.min(340, mw - 240);
+    let cardY = colLeftY + 8;
+
+    for (let i = 0; i < shopSystem.shopItems.length; i++) {
+      const item = shopSystem.shopItems[i];
+      if (
+        clickX >= colLeftX &&
+        clickX <= colLeftX + colLeftW &&
+        clickY >= cardY &&
+        clickY <= cardY + 46
+      ) {
+        const res = shopSystem.buyItem(world, player, item.id);
+        if (res.success) {
+          soundSynth.playShopTransaction();
+          if (pTrans) {
+            combatSystem.spawnFloatingText(
+              world,
+              pTrans.x + 8,
+              pTrans.y - 20,
+              `+${item.name}`,
+              '#f0c674',
+              true
+            );
+          }
+          chatManager.addMessage('Toko', res.message, 'system');
+        } else {
+          soundSynth.playErrorTone();
+          if (pTrans) {
+            combatSystem.spawnFloatingText(
+              world,
+              pTrans.x + 8,
+              pTrans.y - 20,
+              res.message,
+              '#ff7b72',
+              false
+            );
+          }
+        }
+        return;
+      }
+      cardY += 51;
+    }
+
+    // Klik Jual Barang di Kolom Kanan
+    const colRightX = colLeftX + colLeftW + 12;
+    const colRightY = colLeftY;
+    const colRightW = mw - (colLeftW + 36);
+    let sellY = colRightY + 8;
+    let filledCount = 0;
+
+    const pInv = world.getComponent(player, InventoryComponent);
+    if (pInv) {
+      for (let i = 0; i < pInv.maxSlots; i++) {
+        const item = pInv.slots[i];
+        if (!item) continue;
+        filledCount++;
+        if (filledCount > 5) break;
+
+        if (
+          clickX >= colRightX &&
+          clickX <= colRightX + colRightW &&
+          clickY >= sellY &&
+          clickY <= sellY + 46
+        ) {
+          const res = shopSystem.sellItem(world, player, i);
+          if (res.success) {
+            soundSynth.playShopTransaction();
+            if (pTrans) {
+              combatSystem.spawnFloatingText(
+                world,
+                pTrans.x + 8,
+                pTrans.y - 20,
+                `+${res.costOrEarnings} G`,
+                '#3fb950',
+                true
+              );
+            }
+            chatManager.addMessage('Toko', res.message, 'system');
+          } else {
+            soundSynth.playErrorTone();
+          }
+          return;
+        }
+        sellY += 51;
       }
     }
     return;
