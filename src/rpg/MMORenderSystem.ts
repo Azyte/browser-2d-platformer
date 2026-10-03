@@ -114,6 +114,106 @@ export function formatChatTimestamp(date: Date | string): string {
   return `${hours}:${minutes}`;
 }
 
+export interface UIRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/**
+ * Memeriksa apakah dua elemen UI persegi bertabrakan atau tumpang tindih.
+ */
+export function checkRectOverlap(r1: UIRect, r2: UIRect): boolean {
+  return !(
+    r1.x + r1.w <= r2.x ||
+    r2.x + r2.w <= r1.x ||
+    r1.y + r1.h <= r2.y ||
+    r2.y + r2.h <= r1.y
+  );
+}
+
+/**
+ * Menghitung koordinat dan ukuran kotak Chat global di kiri bawah.
+ */
+export function calculateChatBoxBounds(vw: number, vh: number): UIRect {
+  const w = Math.min(260, vw - 28);
+  const h = 76;
+  const x = 14;
+  const y = vh - 124;
+  return { x, y, w, h };
+}
+
+/**
+ * Menghitung koordinat dan ukuran Action Hotbar di tengah bawah.
+ */
+export function calculateActionBarBounds(vw: number, vh: number): UIRect {
+  const slotSize = 42;
+  const gap = 8;
+  const count = 4;
+  const w = count * slotSize + (count - 1) * gap;
+  const h = slotSize;
+  const x = Math.round((vw - w) / 2);
+  const y = vh - 52;
+  return { x, y, w, h };
+}
+
+/**
+ * Menghitung koordinat dan ukuran Minimap Radar di kanan atas.
+ */
+export function calculateMinimapBounds(vw: number): UIRect {
+  const w = 120;
+  const h = 80;
+  const x = vw - w - 14;
+  const y = 14;
+  return { x, y, w, h };
+}
+
+/**
+ * Menghitung koordinat dan ukuran Pelacak Quest aktif di bawah radar.
+ */
+export function calculateQuestTrackerBounds(vw: number, questCount: number): UIRect {
+  const w = 140;
+  const h = 20 + Math.max(1, questCount) * 16;
+  const x = vw - w - 14;
+  const y = 104;
+  return { x, y, w, h };
+}
+
+/**
+ * Menghitung koordinat dan ukuran Modal Dialog NPC di bawah layar.
+ */
+export function calculateDialogueModalBounds(vw: number, vh: number): UIRect {
+  const mw = Math.min(680, vw - 32);
+  const mh = 150;
+  const mx = Math.round((vw - mw) / 2);
+  const my = vh - mh - 16;
+  return { x: mx, y: my, w: mw, h: mh };
+}
+
+/**
+ * Menghitung koordinat dan ukuran Modal Inventaris Tas di tengah layar.
+ */
+export function calculateInventoryModalBounds(vw: number, vh: number): UIRect {
+  const mw = Math.min(500, vw - 24);
+  const mh = 330;
+  const mx = Math.round((vw - mw) / 2);
+  const my = Math.round((vh - mh) / 2);
+  return { x: mx, y: my, w: mw, h: mh };
+}
+
+/**
+ * Menghitung koordinat dan ukuran Modal Toko Pedagang Elric di tengah layar.
+ */
+export function calculateShopModalBounds(vw: number, vh: number): UIRect {
+  const mw = Math.min(640, vw - 24);
+  const mh = 350;
+  const mx = Math.round((vw - mw) / 2);
+  const my = Math.round((vh - mh) / 2);
+  return { x: mx, y: my, w: mw, h: mh };
+}
+
+
 /**
  * MMORenderSystem merender dunia MMORPG 2D top-down:
  * - Tilemap latar belakang (rumput alami, jalan setapak batu, kolam air beriak)
@@ -1042,6 +1142,9 @@ export class MMORenderSystem implements System {
     const vw = this.camera.viewportWidth;
     const vh = this.camera.viewportHeight;
 
+    const isDialogueOpen = this.npcSystem?.isDialogueOpen ?? false;
+    const isShopOpen = this.shopSystem?.isOpen ?? false;
+
     ctx.save();
 
     // 1. Panel Stat Pemain Utama di Kiri Atas
@@ -1054,23 +1157,35 @@ export class MMORenderSystem implements System {
         this.renderPlayerHUDPanel(ctx, 14, 14, nameplate?.name ?? 'Hero', stats);
       }
 
-      // 2. Action Hotbar di Tengah Bawah
-      if (combat && stats) {
-        this.renderActionBar(ctx, Math.round(vw / 2 - 100), vh - 52, combat, stats);
+      // 2. Action Hotbar di Tengah Bawah (Sembunyikan saat dialog atau toko terbuka)
+      if (combat && stats && !isDialogueOpen && !isShopOpen) {
+        const actionBounds = calculateActionBarBounds(vw, vh);
+        this.renderActionBar(ctx, actionBounds.x, actionBounds.y, combat, stats);
       }
     }
 
     // 3. Minimap Radar di Kanan Atas
-    this.renderMinimap(ctx, vw - 134, 14, 120, 80, world, mainPlayerEntity);
+    const minimapBounds = calculateMinimapBounds(vw);
+    this.renderMinimap(
+      ctx,
+      minimapBounds.x,
+      minimapBounds.y,
+      minimapBounds.w,
+      minimapBounds.h,
+      world,
+      mainPlayerEntity
+    );
 
-    // 4. Quest Tracker di Kanan Bawah Minimap
+    // 4. Quest Tracker di Kanan Bawah Minimap (Sejajar margin kanan dengan Minimap)
     if (this.questManager) {
-      this.renderQuestTracker(ctx, vw - 174, 104, 160, this.questManager);
+      const questBounds = calculateQuestTrackerBounds(vw, this.questManager.getAllQuests().length);
+      this.renderQuestTracker(ctx, questBounds.x, questBounds.y, questBounds.w, this.questManager);
     }
 
-    // 5. Global MMO Chat Log di Kiri Bawah
-    if (this.chatManager) {
-      this.renderChatBox(ctx, 14, vh - 124, 270, 76);
+    // 5. Global MMO Chat Log di Kiri Bawah (Sembunyikan saat dialog terbuka agar tidak bertabrakan)
+    if (this.chatManager && !isDialogueOpen && !isShopOpen) {
+      const chatBounds = calculateChatBoxBounds(vw, vh);
+      this.renderChatBox(ctx, chatBounds.x, chatBounds.y, chatBounds.w, chatBounds.h);
     }
 
     ctx.restore();
@@ -1088,12 +1203,19 @@ export class MMORenderSystem implements System {
     world: World,
     player?: Entity | null
   ): void {
+    ctx.save();
+
     // Background frame radar gelap
     ctx.fillStyle = 'rgba(13, 17, 23, 0.88)';
     ctx.fillRect(x, y, w, h);
     ctx.strokeStyle = '#30363d';
     ctx.lineWidth = 1.5;
     ctx.strokeRect(x, y, w, h);
+
+    // Batasi area gambar agar radar tidak pernah offside melintasi border
+    ctx.beginPath();
+    ctx.rect(x, y, w, h);
+    ctx.clip();
 
     // Header radar menampilkan waktu dunia dan fase siang/malam
     const timeLabel = this.dayNightSystem
@@ -1102,7 +1224,7 @@ export class MMORenderSystem implements System {
     ctx.fillStyle = '#f0c674';
     ctx.font = '8px monospace';
     ctx.textAlign = 'left';
-    ctx.fillText(timeLabel, x + 5, y + 10);
+    ctx.fillText(timeLabel, x + 5, y + 10, w - 10);
 
     const scaleX = w / this.worldWidth;
     const scaleY = h / this.worldHeight;
@@ -1176,6 +1298,8 @@ export class MMORenderSystem implements System {
         ctx.fill();
       }
     }
+
+    ctx.restore();
   }
 
   /**
@@ -1191,29 +1315,36 @@ export class MMORenderSystem implements System {
     const quests = questManager.getAllQuests();
     const h = 20 + quests.length * 16;
 
+    ctx.save();
     ctx.fillStyle = 'rgba(13, 17, 23, 0.85)';
     ctx.fillRect(x, y, w, h);
     ctx.strokeStyle = '#30363d';
     ctx.lineWidth = 1.5;
     ctx.strokeRect(x, y, w, h);
 
+    ctx.beginPath();
+    ctx.rect(x, y, w, h);
+    ctx.clip();
+
     ctx.fillStyle = '#f0c674';
     ctx.font = 'bold 9px monospace';
     ctx.textAlign = 'left';
-    ctx.fillText('📜 Quests Active', x + 6, y + 12);
+    ctx.fillText('📜 Quests Active', x + 6, y + 12, w - 12);
 
     let lineY = y + 25;
     for (const q of quests) {
       ctx.font = '8px monospace';
       if (q.isCompleted) {
         ctx.fillStyle = '#3fb950';
-        ctx.fillText(`✓ [Done] ${q.title.slice(0, 14)}`, x + 6, lineY);
+        ctx.fillText(`✓ [Done] ${q.title.slice(0, 16)}`, x + 6, lineY, w - 12);
       } else {
         ctx.fillStyle = '#c9d1d9';
-        ctx.fillText(`• (${q.currentCount}/${q.requiredCount}) ${q.title.slice(0, 13)}`, x + 6, lineY);
+        ctx.fillText(`• (${q.currentCount}/${q.requiredCount}) ${q.title.slice(0, 14)}`, x + 6, lineY, w - 12);
       }
       lineY += 15;
     }
+
+    ctx.restore();
   }
 
   /**
@@ -1239,12 +1370,13 @@ export class MMORenderSystem implements System {
     ctx.fillStyle = '#e6edf3';
     ctx.font = 'bold 11px monospace';
     ctx.textAlign = 'left';
-    ctx.fillText(`${name} (Lv.${stats.level})`, x + 8, y + 16);
+    const displayName = name.length > 13 ? name.slice(0, 12) + '..' : name;
+    ctx.fillText(`${displayName} (Lv.${stats.level})`, x + 8, y + 16, 120);
 
     ctx.fillStyle = '#e3b341';
     ctx.font = '10px monospace';
     ctx.textAlign = 'right';
-    ctx.fillText(`💰 ${stats.gold} G`, x + w - 8, y + 16);
+    ctx.fillText(`💰 ${stats.gold} G`, x + w - 8, y + 16, 68);
 
     const barW = w - 16;
     const barX = x + 8;
@@ -1364,11 +1496,16 @@ export class MMORenderSystem implements System {
   ): void {
     if (!this.chatManager) return;
 
+    ctx.save();
     ctx.fillStyle = 'rgba(13, 17, 23, 0.85)';
     ctx.fillRect(x, y, w, h);
     ctx.strokeStyle = '#30363d';
     ctx.lineWidth = 1.5;
     ctx.strokeRect(x, y, w, h);
+
+    ctx.beginPath();
+    ctx.rect(x, y, w, h);
+    ctx.clip();
 
     ctx.fillStyle = '#8b949e';
     ctx.font = 'bold 9px monospace';
@@ -1393,10 +1530,14 @@ export class MMORenderSystem implements System {
 
       ctx.fillStyle = channelColor;
       const senderText = msg.sender ? `[${msg.sender}]: ` : '';
-      ctx.fillText(`${senderText}${msg.text.slice(0, 28)}`, x + 50, lineY);
+      const fullText = `${senderText}${msg.text}`;
+      const maxTextW = w - 54;
+      ctx.fillText(fullText, x + 48, lineY, maxTextW);
 
       lineY += 15;
     }
+
+    ctx.restore();
   }
 
   /**
@@ -1526,10 +1667,8 @@ export class MMORenderSystem implements System {
     const vw = this.camera.viewportWidth;
     const vh = this.camera.viewportHeight;
 
-    const mw = Math.min(680, vw - 40);
-    const mh = 145;
-    const mx = Math.round((vw - mw) / 2);
-    const my = vh - mh - 20;
+    const bounds = calculateDialogueModalBounds(vw, vh);
+    const { x: mx, y: my, w: mw, h: mh } = bounds;
 
     ctx.save();
 
@@ -1568,11 +1707,11 @@ export class MMORenderSystem implements System {
     ctx.fillStyle = '#e3b341';
     ctx.font = 'bold 12px monospace';
     ctx.textAlign = 'left';
-    ctx.fillText(`${npcComp.name}`, mx + 72, my + 20);
+    ctx.fillText(`${npcComp.name}`, mx + 72, my + 20, mw - 90);
 
     ctx.fillStyle = '#8b949e';
     ctx.font = '10px monospace';
-    ctx.fillText(`<${npcComp.title}>`, mx + 72, my + 34);
+    ctx.fillText(`<${npcComp.title}>`, mx + 72, my + 34, mw - 90);
 
     // Teks Isi Ucapan NPC
     ctx.fillStyle = '#e6edf3';
@@ -1587,7 +1726,7 @@ export class MMORenderSystem implements System {
     for (const w of words) {
       const testLine = currentLine ? `${currentLine} ${w}` : w;
       if (ctx.measureText(testLine).width > maxLineW) {
-        ctx.fillText(currentLine, textX, textY);
+        ctx.fillText(currentLine, textX, textY, maxLineW);
         currentLine = w;
         textY += 15;
       } else {
@@ -1595,7 +1734,7 @@ export class MMORenderSystem implements System {
       }
     }
     if (currentLine) {
-      ctx.fillText(currentLine, textX, textY);
+      ctx.fillText(currentLine, textX, textY, maxLineW);
     }
 
     // Opsi Percabangan Dialog di Bagian Bawah
@@ -1611,7 +1750,7 @@ export class MMORenderSystem implements System {
 
       ctx.fillStyle = '#58a6ff';
       ctx.font = '10px monospace';
-      ctx.fillText(`[${i + 1}] ${opt.text}`, mx + 76, optY + 1);
+      ctx.fillText(`[${i + 1}] ${opt.text}`, mx + 76, optY + 1, mw - 96);
       optY += 18;
     }
 
@@ -1629,12 +1768,14 @@ export class MMORenderSystem implements System {
     const vw = this.camera.viewportWidth;
     const vh = this.camera.viewportHeight;
 
-    const mw = Math.min(520, vw - 30);
-    const mh = 310;
-    const mx = Math.round((vw - mw) / 2);
-    const my = Math.round((vh - mh) / 2);
+    const bounds = calculateInventoryModalBounds(vw, vh);
+    const { x: mx, y: my, w: mw, h: mh } = bounds;
 
     ctx.save();
+
+    // Dim Background Overlay (fokus modal)
+    ctx.fillStyle = 'rgba(5, 8, 12, 0.75)';
+    ctx.fillRect(0, 0, vw, vh);
 
     // Background Modal
     ctx.fillStyle = 'rgba(13, 17, 23, 0.96)';
@@ -1653,9 +1794,10 @@ export class MMORenderSystem implements System {
     ctx.fillStyle = '#f0c674';
     ctx.font = 'bold 12px monospace';
     ctx.textAlign = 'left';
-    ctx.fillText('🎒 Hero Inventory & Equipment (Press [I] to Close)', mx + 12, my + 18);
+    ctx.fillText('🎒 Hero Inventory & Equipment (Press [I] to Close)', mx + 12, my + 18, mw - 24);
 
     // Kolom Kiri: Slot Perlengkapan Terpasang
+    const colW = Math.round((mw - 44) / 2);
     const leftX = mx + 14;
     const leftY = my + 38;
 
@@ -1673,10 +1815,10 @@ export class MMORenderSystem implements System {
     for (const eq of equipSlots) {
       const item = inv.equipment[eq.slot];
       ctx.fillStyle = '#21262d';
-      ctx.fillRect(leftX, eqY, 180, 26);
+      ctx.fillRect(leftX, eqY, colW, 26);
       ctx.strokeStyle = item ? '#e3b341' : '#30363d';
       ctx.lineWidth = 1;
-      ctx.strokeRect(leftX, eqY, 180, 26);
+      ctx.strokeRect(leftX, eqY, colW, 26);
 
       ctx.fillStyle = '#c9d1d9';
       ctx.font = '9px monospace';
@@ -1685,7 +1827,7 @@ export class MMORenderSystem implements System {
       if (item) {
         ctx.fillStyle = '#58a6ff';
         ctx.font = 'bold 9px monospace';
-        ctx.fillText(item.name.slice(0, 14), leftX + 75, eqY + 16);
+        ctx.fillText(item.name, leftX + 75, eqY + 16, colW - 80);
       } else {
         ctx.fillStyle = '#6e7681';
         ctx.font = 'italic 9px monospace';
@@ -1697,41 +1839,42 @@ export class MMORenderSystem implements System {
     // Ringkasan Status Karakter di Kolom Kiri
     const statBoxY = eqY + 4;
     ctx.fillStyle = '#161b22';
-    ctx.fillRect(leftX, statBoxY, 180, 80);
+    ctx.fillRect(leftX, statBoxY, colW, 80);
     ctx.strokeStyle = '#30363d';
-    ctx.strokeRect(leftX, statBoxY, 180, 80);
+    ctx.strokeRect(leftX, statBoxY, colW, 80);
 
     ctx.fillStyle = '#e6edf3';
     ctx.font = 'bold 10px monospace';
     ctx.fillText('📊 Character Stats', leftX + 6, statBoxY + 14);
 
+    const colHalf = Math.round(colW / 2);
     ctx.font = '9px monospace';
     ctx.fillStyle = '#ff7b72';
     ctx.fillText(`Attack:  ${stats.attack}`, leftX + 8, statBoxY + 30);
     ctx.fillStyle = '#79c0ff';
-    ctx.fillText(`Defense: ${stats.defense}`, leftX + 90, statBoxY + 30);
+    ctx.fillText(`Defense: ${stats.defense}`, leftX + colHalf, statBoxY + 30);
 
     ctx.fillStyle = '#3fb950';
     ctx.fillText(`Max HP:  ${stats.maxHp}`, leftX + 8, statBoxY + 46);
     ctx.fillStyle = '#a371f7';
-    ctx.fillText(`Max MP:  ${stats.maxMp}`, leftX + 90, statBoxY + 46);
+    ctx.fillText(`Max MP:  ${stats.maxMp}`, leftX + colHalf, statBoxY + 46);
 
     ctx.fillStyle = '#f0883e';
     ctx.fillText(`Gold:    ${stats.gold} G`, leftX + 8, statBoxY + 62);
     ctx.fillStyle = '#e3b341';
-    ctx.fillText(`Crit:    ${Math.round(stats.critChance * 100)}%`, leftX + 90, statBoxY + 62);
+    ctx.fillText(`Crit:    ${Math.round(stats.critChance * 100)}%`, leftX + colHalf, statBoxY + 62);
 
     // Kolom Kanan: Grid 4x4 Tas Inventaris (16 Slot)
-    const rightX = leftX + 195;
+    const rightX = leftX + colW + 16;
     const rightY = leftY;
 
     ctx.fillStyle = '#79c0ff';
     ctx.font = 'bold 10px monospace';
     ctx.fillText('📦 Bag Items (1-8 to Use/Equip)', rightX, rightY);
 
-    const slotSize = 36;
-    const gap = 6;
     const cols = 4;
+    const gap = 6;
+    const slotSize = Math.floor((colW - (cols - 1) * gap) / cols);
 
     for (let i = 0; i < inv.maxSlots; i++) {
       const col = i % cols;
@@ -1800,11 +1943,11 @@ export class MMORenderSystem implements System {
       if (selectedItem.rarity === 'rare') rColor = '#58a6ff';
       ctx.fillStyle = rColor;
       ctx.font = 'bold 10px monospace';
-      ctx.fillText(`[Slot ${selIndex + 1}] ${selectedItem.name} (${selectedItem.type})`, mx + 20, tipY + 14);
+      ctx.fillText(`[Slot ${selIndex + 1}] ${selectedItem.name} (${selectedItem.type})`, mx + 20, tipY + 14, mw - 40);
 
       ctx.fillStyle = '#8b949e';
       ctx.font = '9px monospace';
-      ctx.fillText(selectedItem.description, mx + 20, tipY + 28);
+      ctx.fillText(selectedItem.description, mx + 20, tipY + 28, mw - 40);
 
       let bonusText = '';
       if (selectedItem.statBonus) {
@@ -1817,11 +1960,11 @@ export class MMORenderSystem implements System {
       if (selectedItem.healMp) bonusText += `Restores +${selectedItem.healMp} MP `;
 
       ctx.fillStyle = '#3fb950';
-      ctx.fillText(`Effects: ${bonusText || 'None'} | Press [1-${inv.maxSlots}] to Equip/Use`, mx + 20, tipY + 42);
+      ctx.fillText(`Effects: ${bonusText || 'None'} | Press [1-${inv.maxSlots}] to Equip/Use`, mx + 20, tipY + 42, mw - 40);
     } else {
       ctx.fillStyle = '#6e7681';
       ctx.font = '9px monospace';
-      ctx.fillText(`[Slot ${selIndex + 1}] Empty Slot: Select another slot or press [I] to close.`, mx + 20, tipY + 26);
+      ctx.fillText(`[Slot ${selIndex + 1}] Empty Slot: Select another slot or press [I] to close.`, mx + 20, tipY + 26, mw - 40);
     }
 
     ctx.restore();
@@ -1839,10 +1982,8 @@ export class MMORenderSystem implements System {
     const vw = this.camera.viewportWidth;
     const vh = this.camera.viewportHeight;
 
-    const mw = Math.min(620, vw - 24);
-    const mh = 345;
-    const mx = Math.round((vw - mw) / 2);
-    const my = Math.round((vh - mh) / 2);
+    const bounds = calculateShopModalBounds(vw, vh);
+    const { x: mx, y: my, w: mw, h: mh } = bounds;
 
     ctx.save();
 
@@ -1863,11 +2004,6 @@ export class MMORenderSystem implements System {
     ctx.strokeStyle = '#30363d';
     ctx.lineWidth = 1;
     ctx.strokeRect(mx, my, mw, 32);
-
-    ctx.fillStyle = '#f0c674';
-    ctx.font = 'bold 12px monospace';
-    ctx.textAlign = 'left';
-    ctx.fillText('🏪 Toko Pedagang Elric (Sanctuary Merchant)', mx + 12, my + 21);
 
     // Gold Saldo Player Badge
     const goldText = `💰 ${stats.gold} G`;
@@ -1893,6 +2029,14 @@ export class MMORenderSystem implements System {
     ctx.font = 'bold 11px monospace';
     ctx.textAlign = 'center';
     ctx.fillText('X', mx + mw - 19, my + 20);
+
+    // Header Title (dengan maxWidth aman agar tidak bertabrakan dengan gold badge)
+    ctx.fillStyle = '#f0c674';
+    ctx.font = 'bold 12px monospace';
+    ctx.textAlign = 'left';
+    const headerTitle = mw < 520 ? '🏪 Toko Pedagang Elric' : '🏪 Toko Pedagang Elric (Sanctuary Merchant)';
+    const maxTitleW = gBadgeX - (mx + 12) - 12;
+    ctx.fillText(headerTitle, mx + 12, my + 21, Math.max(120, maxTitleW));
 
     // Kolom Kiri: Katalog Toko (Beli)
     const colLeftX = mx + 12;
@@ -1932,39 +2076,6 @@ export class MMORenderSystem implements System {
       ctx.font = 'bold 9px monospace';
       ctx.fillText(`[${i + 1}]`, colLeftX + 12, cardY + 12);
 
-      // Name & Stat Bonus
-      ctx.textAlign = 'left';
-      ctx.font = 'bold 10px monospace';
-      ctx.fillStyle =
-        item.rarity === 'epic' ? '#d2a8ff' : item.rarity === 'rare' ? '#79c0ff' : '#f0f6fc';
-      ctx.fillText(item.name, colLeftX + 46, cardY + 18);
-
-      ctx.font = '9px monospace';
-      if (item.statBonus?.attack) {
-        ctx.fillStyle = '#ff7b72';
-        ctx.fillText(`+${item.statBonus.attack} ATK`, colLeftX + 46, cardY + 34);
-      } else if (item.statBonus?.defense) {
-        ctx.fillStyle = '#79c0ff';
-        ctx.fillText(
-          `+${item.statBonus.defense} DEF +${item.statBonus.maxHp ?? 0} HP`,
-          colLeftX + 46,
-          cardY + 34
-        );
-      } else if (item.statBonus?.maxMp) {
-        ctx.fillStyle = '#bc8cff';
-        ctx.fillText(
-          `+${item.statBonus.maxMp} MP +${item.statBonus.attack ?? 0} ATK`,
-          colLeftX + 46,
-          cardY + 34
-        );
-      } else if (item.healHp) {
-        ctx.fillStyle = '#3fb950';
-        ctx.fillText(`Pulihkan +${item.healHp} HP`, colLeftX + 46, cardY + 34);
-      } else if (item.healMp) {
-        ctx.fillStyle = '#58a6ff';
-        ctx.fillText(`Pulihkan +${item.healMp} MP`, colLeftX + 46, cardY + 34);
-      }
-
       // Tombol Beli & Harga
       const btnW = 72;
       const btnH = 26;
@@ -1982,6 +2093,42 @@ export class MMORenderSystem implements System {
       ctx.font = 'bold 9px monospace';
       ctx.textAlign = 'center';
       ctx.fillText(`${item.cost} G Beli`, btnX + btnW / 2, btnY + 16);
+
+      // Name & Stat Bonus
+      const maxTextW = btnX - (colLeftX + 46) - 6;
+      ctx.textAlign = 'left';
+      ctx.font = 'bold 10px monospace';
+      ctx.fillStyle =
+        item.rarity === 'epic' ? '#d2a8ff' : item.rarity === 'rare' ? '#79c0ff' : '#f0f6fc';
+      ctx.fillText(item.name, colLeftX + 46, cardY + 18, maxTextW);
+
+      ctx.font = '9px monospace';
+      if (item.statBonus?.attack) {
+        ctx.fillStyle = '#ff7b72';
+        ctx.fillText(`+${item.statBonus.attack} ATK`, colLeftX + 46, cardY + 34, maxTextW);
+      } else if (item.statBonus?.defense) {
+        ctx.fillStyle = '#79c0ff';
+        ctx.fillText(
+          `+${item.statBonus.defense} DEF +${item.statBonus.maxHp ?? 0} HP`,
+          colLeftX + 46,
+          cardY + 34,
+          maxTextW
+        );
+      } else if (item.statBonus?.maxMp) {
+        ctx.fillStyle = '#bc8cff';
+        ctx.fillText(
+          `+${item.statBonus.maxMp} MP +${item.statBonus.attack ?? 0} ATK`,
+          colLeftX + 46,
+          cardY + 34,
+          maxTextW
+        );
+      } else if (item.healHp) {
+        ctx.fillStyle = '#3fb950';
+        ctx.fillText(`Pulihkan +${item.healHp} HP`, colLeftX + 46, cardY + 34, maxTextW);
+      } else if (item.healMp) {
+        ctx.fillStyle = '#58a6ff';
+        ctx.fillText(`Pulihkan +${item.healMp} MP`, colLeftX + 46, cardY + 34, maxTextW);
+      }
 
       cardY += 51;
     }
@@ -2014,18 +2161,6 @@ export class MMORenderSystem implements System {
       ctx.lineWidth = 1;
       ctx.strokeRect(colRightX, sellY, colRightW, 46);
 
-      // Nama Item & Qty
-      ctx.fillStyle = '#f0f6fc';
-      ctx.font = 'bold 9px monospace';
-      ctx.textAlign = 'left';
-      const displayName = item.name.length > 11 ? item.name.slice(0, 10) + '..' : item.name;
-      ctx.fillText(`${displayName} x${item.quantity}`, colRightX + 6, sellY + 18);
-
-      // Nilai Jual
-      ctx.fillStyle = '#3fb950';
-      ctx.font = '9px monospace';
-      ctx.fillText(`+${sellPrice} G`, colRightX + 6, sellY + 34);
-
       // Tombol Jual
       const sBtnW = 54;
       const sBtnH = 24;
@@ -2044,6 +2179,18 @@ export class MMORenderSystem implements System {
       ctx.textAlign = 'center';
       ctx.fillText('Jual', sBtnX + sBtnW / 2, sBtnY + 15);
 
+      // Nama Item & Qty
+      const maxSellTextW = sBtnX - colRightX - 12;
+      ctx.fillStyle = '#f0f6fc';
+      ctx.font = 'bold 9px monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText(`${item.name} x${item.quantity}`, colRightX + 6, sellY + 18, maxSellTextW);
+
+      // Nilai Jual
+      ctx.fillStyle = '#3fb950';
+      ctx.font = '9px monospace';
+      ctx.fillText(`+${sellPrice} G`, colRightX + 6, sellY + 34, maxSellTextW);
+
       sellY += 51;
     }
 
@@ -2051,7 +2198,7 @@ export class MMORenderSystem implements System {
       ctx.fillStyle = '#6e7681';
       ctx.font = 'italic 10px monospace';
       ctx.textAlign = 'left';
-      ctx.fillText('(Tas kosong, tidak ada barang untuk dijual)', colRightX + 6, colRightY + 28);
+      ctx.fillText('(Tas kosong, tidak ada barang untuk dijual)', colRightX + 6, colRightY + 28, colRightW - 12);
     }
 
     // Footer Info
@@ -2061,7 +2208,8 @@ export class MMORenderSystem implements System {
     ctx.fillText(
       '💡 Kumpulkan Gold dari Monster & Quest | [Escape] Tutup Toko',
       mx + mw / 2,
-      my + mh - 10
+      my + mh - 10,
+      mw - 24
     );
 
     ctx.restore();

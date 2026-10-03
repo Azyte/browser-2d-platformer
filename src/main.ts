@@ -57,10 +57,10 @@ app.innerHTML = `
           </p>
         </div>
         <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
-          <span style="background: #238636; color: #ffffff; padding: 3px 8px; border-radius: 10px; font-size: 11px; font-weight: 600;">
+          <span style="background: #238636; color: #ffffff; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;">
             🟢 Online (CH 1)
           </span>
-          <button id="btn-debug-toggle" style="background: #21262d; border: 1px solid #388bfd; color: #58a6ff; padding: 3px 8px; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: 600;">
+          <button id="btn-debug-toggle" style="background: #21262d; border: 1px solid #388bfd; color: #58a6ff; min-height: 36px; padding: 0 10px; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; justify-content: center;">
             ⚙️ Debug (F3): OFF
           </button>
         </div>
@@ -68,29 +68,29 @@ app.innerHTML = `
 
       <!-- Metrik Bar Grid (Responsif & Anti-Offside) -->
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(115px, 1fr)); gap: 10px; margin-bottom: 12px; width: 100%; box-sizing: border-box;">
-        <div style="background: #161b22; padding: 8px 12px; border-radius: 6px; border: 1px solid #30363d;">
+        <div style="background: #161b22; padding: 8px 12px; border-radius: 6px; border: 1px solid #30363d; box-sizing: border-box; overflow: hidden;">
           <div style="color: #8b949e; font-size: 10px; font-weight: 500;">FPS / UPS</div>
           <div style="font-size: 16px; font-weight: bold; margin-top: 2px;">
             <span id="fps-val" style="color: #3fb950;">0</span> / <span id="ups-val" style="color: #58a6ff;">0</span>
           </div>
         </div>
-        <div style="background: #161b22; padding: 8px 12px; border-radius: 6px; border: 1px solid #30363d;">
+        <div style="background: #161b22; padding: 8px 12px; border-radius: 6px; border: 1px solid #30363d; box-sizing: border-box; overflow: hidden;">
           <div style="color: #8b949e; font-size: 10px; font-weight: 500;">World Clock</div>
           <div id="clock-val" style="font-size: 14px; font-weight: bold; color: #f0c674; margin-top: 2px;">10:00 DAY</div>
         </div>
-        <div style="background: #161b22; padding: 8px 12px; border-radius: 6px; border: 1px solid #30363d;">
+        <div style="background: #161b22; padding: 8px 12px; border-radius: 6px; border: 1px solid #30363d; box-sizing: border-box; overflow: hidden;">
           <div style="color: #8b949e; font-size: 10px; font-weight: 500;">Hero Level</div>
           <div id="player-lvl" style="font-size: 16px; font-weight: bold; color: #e3b341; margin-top: 2px;">Lv. 1</div>
         </div>
-        <div style="background: #161b22; padding: 8px 12px; border-radius: 6px; border: 1px solid #30363d;">
+        <div style="background: #161b22; padding: 8px 12px; border-radius: 6px; border: 1px solid #30363d; box-sizing: border-box; overflow: hidden;">
           <div style="color: #8b949e; font-size: 10px; font-weight: 500;">Gold Stash</div>
           <div id="player-gold" style="font-size: 16px; font-weight: bold; color: #f0883e; margin-top: 2px;">0 G</div>
         </div>
-        <div style="background: #161b22; padding: 8px 12px; border-radius: 6px; border: 1px solid #30363d;">
+        <div style="background: #161b22; padding: 8px 12px; border-radius: 6px; border: 1px solid #30363d; box-sizing: border-box; overflow: hidden;">
           <div style="color: #8b949e; font-size: 10px; font-weight: 500;">Visible Entities</div>
           <div id="entities-val" style="font-size: 16px; font-weight: bold; color: #79c0ff; margin-top: 2px;">0</div>
         </div>
-        <div style="background: #161b22; padding: 8px 12px; border-radius: 6px; border: 1px solid #30363d;">
+        <div style="background: #161b22; padding: 8px 12px; border-radius: 6px; border: 1px solid #30363d; box-sizing: border-box; overflow: hidden;">
           <div style="color: #8b949e; font-size: 10px; font-weight: 500;">Depth Sorting</div>
           <div style="font-size: 12px; font-weight: bold; color: #3fb950; margin-top: 4px;">Active (Y-Base)</div>
         </div>
@@ -101,73 +101,80 @@ app.innerHTML = `
         <canvas id="game-canvas" width="${CANVAS_WIDTH}" height="${CANVAS_HEIGHT}" style="display: block; width: 100%; max-width: 800px; height: auto; aspect-ratio: 800 / 480; border: 1px solid #30363d; background: #0b130e; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); box-sizing: border-box;"></canvas>
       </div>
 
-      <!-- Mobile Touch Gamepad Controls -->
-      <div style="margin-top: 10px; display: flex; justify-content: space-between; align-items: center; background: #161b22; padding: 10px 14px; border-radius: 8px; border: 1px solid #30363d; flex-wrap: wrap; gap: 10px;">
-        <!-- Virtual D-Pad -->
-        <div style="display: inline-grid; grid-template-columns: repeat(3, 38px); grid-template-rows: repeat(3, 34px); gap: 4px; user-select: none;">
-          <div></div>
-          <button id="touch-up" style="background: #21262d; border: 1px solid #30363d; color: #c9d1d9; border-radius: 4px; font-weight: bold; cursor: pointer;">▲</button>
-          <div></div>
-          <button id="touch-left" style="background: #21262d; border: 1px solid #30363d; color: #c9d1d9; border-radius: 4px; font-weight: bold; cursor: pointer;">◄</button>
-          <div style="background: #0d1117; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #484f58;">PAD</div>
-          <button id="touch-right" style="background: #21262d; border: 1px solid #30363d; color: #c9d1d9; border-radius: 4px; font-weight: bold; cursor: pointer;">►</button>
-          <div></div>
-          <button id="touch-down" style="background: #21262d; border: 1px solid #30363d; color: #c9d1d9; border-radius: 4px; font-weight: bold; cursor: pointer;">▼</button>
-          <div></div>
-        </div>
-
-        <!-- Quick Chat & Stress Test Buttons -->
-        <div style="display: flex; flex-direction: column; gap: 6px;">
-          <div style="display: flex; gap: 5px; flex-wrap: wrap;">
-            <button id="btn-chat-wave" style="background: #21262d; border: 1px solid #30363d; color: #e6edf3; padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer;">
+      <!-- Mobile Touch Gamepad Controls (Ergonomis, Anti-Offside, Minimum 44px Tap Targets) -->
+      <div style="margin-top: 12px; background: #161b22; padding: 12px 14px; border-radius: 8px; border: 1px solid #30363d; box-sizing: border-box; width: 100%;">
+        <!-- Bar 1: Quick Chat & Tools Strip -->
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; padding-bottom: 10px; border-bottom: 1px solid #21262d; margin-bottom: 10px;">
+          <!-- Quick Chat Presets -->
+          <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+            <button id="btn-chat-wave" style="background: #21262d; border: 1px solid #30363d; color: #e6edf3; min-height: 44px; padding: 0 12px; border-radius: 6px; font-size: 11px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;">
               👋 Sapa
             </button>
-            <button id="btn-chat-lfg" style="background: #21262d; border: 1px solid #30363d; color: #e6edf3; padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer;">
+            <button id="btn-chat-lfg" style="background: #21262d; border: 1px solid #30363d; color: #e6edf3; min-height: 44px; padding: 0 12px; border-radius: 6px; font-size: 11px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;">
               ⚔️ LFG Fenrir
             </button>
-            <button id="btn-chat-heal" style="background: #21262d; border: 1px solid #30363d; color: #e6edf3; padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer;">
+            <button id="btn-chat-heal" style="background: #21262d; border: 1px solid #30363d; color: #e6edf3; min-height: 44px; padding: 0 12px; border-radius: 6px; font-size: 11px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;">
               🧪 Minta Heal
             </button>
           </div>
-          <div style="display: flex; gap: 5px; flex-wrap: wrap;">
-            <button id="btn-stress-mobs" style="background: #238636; border: none; color: #ffffff; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; cursor: pointer;">
+          <!-- Engine Utility & Audio Toggles -->
+          <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+            <button id="btn-stress-mobs" style="background: #238636; border: 1px solid #3fb950; color: #ffffff; min-height: 44px; padding: 0 10px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;">
               ⚡ +20 Slimes
             </button>
-            <button id="btn-stress-bots" style="background: #6e40c9; border: none; color: #ffffff; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; cursor: pointer;">
+            <button id="btn-stress-bots" style="background: #6e40c9; border: 1px solid #8957e5; color: #ffffff; min-height: 44px; padding: 0 10px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;">
               🤖 +4 Bots
             </button>
-            <button id="btn-audio-toggle" style="background: #1f6feb; border: none; color: #ffffff; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; cursor: pointer;">
+            <button id="btn-audio-toggle" style="background: #1f6feb; border: 1px solid #58a6ff; color: #ffffff; min-height: 44px; padding: 0 10px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;">
               🔊 Sound: ON
             </button>
           </div>
         </div>
 
-        <!-- Virtual Action Buttons -->
-        <div style="display: flex; gap: 5px; user-select: none; flex-wrap: wrap;">
-          <button id="touch-attack" style="width: 44px; height: 44px; background: #da3633; border: 1px solid #f85149; color: #ffffff; border-radius: 50%; font-size: 10px; font-weight: bold; cursor: pointer;">
-            ATK
-          </button>
-          <button id="touch-skill" style="width: 44px; height: 44px; background: #8957e5; border: 1px solid #bc8cff; color: #ffffff; border-radius: 50%; font-size: 9px; font-weight: bold; cursor: pointer;">
-            SKILL
-          </button>
-          <button id="touch-talk" style="width: 44px; height: 44px; background: #d29922; border: 1px solid #f0c674; color: #ffffff; border-radius: 50%; font-size: 9px; font-weight: bold; cursor: pointer;">
-            TALK
-          </button>
-          <button id="touch-bag" style="width: 44px; height: 44px; background: #0969da; border: 1px solid #58a6ff; color: #ffffff; border-radius: 50%; font-size: 9px; font-weight: bold; cursor: pointer;">
-            BAG
-          </button>
-          <button id="touch-hp" style="width: 38px; height: 38px; background: #238636; border: 1px solid #3fb950; color: #ffffff; border-radius: 50%; font-size: 9px; font-weight: bold; cursor: pointer; align-self: center;">
-            HP
-          </button>
-          <button id="touch-mp" style="width: 38px; height: 38px; background: #1f6feb; border: 1px solid #58a6ff; color: #ffffff; border-radius: 50%; font-size: 9px; font-weight: bold; cursor: pointer; align-self: center;">
-            MP
-          </button>
+        <!-- Bar 2: Controller Area (D-Pad Kiri + Action Cluster Kanan) -->
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; user-select: none;">
+          <!-- Virtual D-Pad (44x44px Tap Targets) -->
+          <div style="display: inline-grid; grid-template-columns: repeat(3, 44px); grid-template-rows: repeat(3, 44px); gap: 4px; user-select: none;">
+            <div></div>
+            <button id="touch-up" style="width: 44px; height: 44px; background: #21262d; border: 1px solid #30363d; color: #c9d1d9; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center;">▲</button>
+            <div></div>
+            <button id="touch-left" style="width: 44px; height: 44px; background: #21262d; border: 1px solid #30363d; color: #c9d1d9; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center;">◄</button>
+            <div style="width: 44px; height: 44px; background: #0d1117; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #8b949e; font-weight: 600; border: 1px solid #21262d;">PAD</div>
+            <button id="touch-right" style="width: 44px; height: 44px; background: #21262d; border: 1px solid #30363d; color: #c9d1d9; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center;">►</button>
+            <div></div>
+            <button id="touch-down" style="width: 44px; height: 44px; background: #21262d; border: 1px solid #30363d; color: #c9d1d9; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center;">▼</button>
+            <div></div>
+          </div>
+
+          <!-- Virtual Action Buttons Cluster (3 Kolom x 2 Baris, Symmetrical, Semua 44x44px) -->
+          <div style="display: inline-grid; grid-template-columns: repeat(3, 44px); grid-template-rows: repeat(2, 44px); gap: 6px; user-select: none;">
+            <!-- Baris 1: HP, MP, TALK -->
+            <button id="touch-hp" style="width: 44px; height: 44px; background: #238636; border: 1px solid #3fb950; color: #ffffff; border-radius: 50%; font-size: 10px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+              HP
+            </button>
+            <button id="touch-mp" style="width: 44px; height: 44px; background: #1f6feb; border: 1px solid #58a6ff; color: #ffffff; border-radius: 50%; font-size: 10px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+              MP
+            </button>
+            <button id="touch-talk" style="width: 44px; height: 44px; background: #d29922; border: 1px solid #f0c674; color: #ffffff; border-radius: 50%; font-size: 10px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+              TALK
+            </button>
+            <!-- Baris 2: BAG, SKILL, ATK -->
+            <button id="touch-bag" style="width: 44px; height: 44px; background: #0969da; border: 1px solid #58a6ff; color: #ffffff; border-radius: 50%; font-size: 10px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+              BAG
+            </button>
+            <button id="touch-skill" style="width: 44px; height: 44px; background: #8957e5; border: 1px solid #bc8cff; color: #ffffff; border-radius: 50%; font-size: 9px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+              SKILL
+            </button>
+            <button id="touch-attack" style="width: 44px; height: 44px; background: #da3633; border: 1px solid #f85149; color: #ffffff; border-radius: 50%; font-size: 10px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+              ATK
+            </button>
+          </div>
         </div>
       </div>
 
       <!-- Controls & Features Grid (Responsif Anti-Offside) -->
-      <div style="margin-top: 12px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; width: 100%; box-sizing: border-box;">
-        <div style="background: #161b22; padding: 12px 14px; border-radius: 6px; border: 1px solid #30363d; font-size: 12px; line-height: 1.6;">
+      <div style="margin-top: 12px; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; width: 100%; box-sizing: border-box;">
+        <div style="background: #161b22; padding: 12px 14px; border-radius: 6px; border: 1px solid #30363d; font-size: 12px; line-height: 1.6; box-sizing: border-box; overflow-wrap: break-word;">
           <div style="font-weight: 600; color: #79c0ff; margin-bottom: 6px;">🎮 Keyboard & Gamepad:</div>
           <div><strong style="color: #e6edf3;">[W, A, S, D]</strong>: Jalan 8 Arah (Normalisasi diagonal)</div>
           <div><strong style="color: #e6edf3;">[Space / J]</strong>: Basic Attack | <strong style="color: #e6edf3;">[K / 1]</strong>: Whirlwind Slash</div>
@@ -176,7 +183,7 @@ app.innerHTML = `
           <div><strong style="color: #e6edf3;">[1-5]</strong>: Beli Cepat Toko | <strong style="color: #e6edf3;">[1-3]</strong>: Opsi Dialog</div>
           <div><strong style="color: #e6edf3;">[Q / E]</strong>: Minum HP/MP Potion | <strong style="color: #e6edf3;">[F3]</strong>: Toggle Hitbox & Radar</div>
         </div>
-        <div style="background: #161b22; padding: 12px 14px; border-radius: 6px; border: 1px solid #30363d; font-size: 12px; color: #8b949e; line-height: 1.5;">
+        <div style="background: #161b22; padding: 12px 14px; border-radius: 6px; border: 1px solid #30363d; font-size: 12px; color: #8b949e; line-height: 1.5; box-sizing: border-box; overflow-wrap: break-word;">
           <div style="font-weight: 600; color: #e3b341; margin-bottom: 4px;">✨ Fitur Unggulan Engine:</div>
           <div>- Toko & Gold Economy: Belanja senjata, zirah, dan ramuan ke Pedagang Elric.</div>
           <div>- Dialog Interaktif: Bicara dengan Tetua Rowan untuk berkah & lore dunia.</div>

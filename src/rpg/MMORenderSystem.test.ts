@@ -5,6 +5,14 @@ import {
   sortEntitiesByDepth,
   calculateHealthBarWidth,
   formatChatTimestamp,
+  calculateChatBoxBounds,
+  calculateActionBarBounds,
+  calculateMinimapBounds,
+  calculateQuestTrackerBounds,
+  calculateDialogueModalBounds,
+  calculateInventoryModalBounds,
+  calculateShopModalBounds,
+  checkRectOverlap,
   MMOVisualComponent,
 } from './MMORenderSystem';
 
@@ -90,4 +98,65 @@ describe('MMORenderSystem - Depth Y-Sorting & HUD Helpers', () => {
     const formatted = formatChatTimestamp(date);
     expect(formatted).toMatch(/^\d{2}:\d{2}$/);
   });
+
+  it('should calculate HUD layout bounds without overlapping elements on 800x480 viewport', () => {
+    const vw = 800;
+    const vh = 480;
+
+    const chatBounds = calculateChatBoxBounds(vw, vh);
+    const actionBounds = calculateActionBarBounds(vw, vh);
+    const minimapBounds = calculateMinimapBounds(vw);
+    const questBounds = calculateQuestTrackerBounds(vw, 2);
+
+    // ChatBox and ActionHotbar must never collide horizontally or vertically
+    expect(checkRectOverlap(chatBounds, actionBounds)).toBe(false);
+    expect(chatBounds.x + chatBounds.w).toBeLessThan(actionBounds.x);
+
+    // Minimap and QuestTracker must never collide vertically and must share right alignment
+    expect(checkRectOverlap(minimapBounds, questBounds)).toBe(false);
+    expect(minimapBounds.y + minimapBounds.h).toBeLessThan(questBounds.y);
+    expect(minimapBounds.x + minimapBounds.w).toBe(questBounds.x + questBounds.w);
+
+    // All HUD elements must reside completely inside the viewport bounds
+    expect(chatBounds.x).toBeGreaterThanOrEqual(0);
+    expect(chatBounds.y + chatBounds.h).toBeLessThanOrEqual(vh);
+    expect(actionBounds.x).toBeGreaterThanOrEqual(0);
+    expect(actionBounds.x + actionBounds.w).toBeLessThanOrEqual(vw);
+    expect(minimapBounds.x + minimapBounds.w).toBeLessThanOrEqual(vw);
+    expect(questBounds.x + questBounds.w).toBeLessThanOrEqual(vw);
+  });
+
+  it('should verify DialogueModal covers bottom screen and justifies hiding ChatBox and ActionBar', () => {
+    const vw = 800;
+    const vh = 480;
+
+    const dialogueBounds = calculateDialogueModalBounds(vw, vh);
+    const chatBounds = calculateChatBoxBounds(vw, vh);
+    const actionBounds = calculateActionBarBounds(vw, vh);
+
+    // If both dialogue and chat/action were rendered, they would collide
+    expect(checkRectOverlap(dialogueBounds, chatBounds)).toBe(true);
+    expect(checkRectOverlap(dialogueBounds, actionBounds)).toBe(true);
+  });
+
+  it('should calculate centered modal bounds for Inventory and Shop modals', () => {
+    const vw = 800;
+    const vh = 480;
+
+    const invBounds = calculateInventoryModalBounds(vw, vh);
+    const shopBounds = calculateShopModalBounds(vw, vh);
+
+    // Centered symmetrically horizontally and vertically
+    expect(invBounds.x).toBe(Math.round((vw - invBounds.w) / 2));
+    expect(invBounds.y).toBe(Math.round((vh - invBounds.h) / 2));
+    expect(shopBounds.x).toBe(Math.round((vw - shopBounds.w) / 2));
+    expect(shopBounds.y).toBe(Math.round((vh - shopBounds.h) / 2));
+
+    // Stays strictly within viewport
+    expect(invBounds.x).toBeGreaterThan(0);
+    expect(invBounds.x + invBounds.w).toBeLessThan(vw);
+    expect(shopBounds.x).toBeGreaterThan(0);
+    expect(shopBounds.x + shopBounds.w).toBeLessThan(vw);
+  });
 });
+
