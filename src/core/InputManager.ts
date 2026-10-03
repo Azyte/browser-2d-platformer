@@ -10,7 +10,9 @@ export type InputAction =
   | 'attack'
   | 'skill'
   | 'potionHp'
-  | 'potionMp';
+  | 'potionMp'
+  | 'interact'
+  | 'inventory';
 
 export interface InputManagerOptions {
   /** Elemen target penangkap event keyboard (default: window). */
@@ -31,6 +33,8 @@ const DEFAULT_BINDINGS: Record<InputAction, string[]> = {
   skill: ['KeyK', 'Digit1', 'Numpad1'],
   potionHp: ['KeyQ'],
   potionMp: ['KeyE'],
+  interact: ['KeyF'],
+  inventory: ['KeyI', 'KeyB'],
 };
 
 /**
@@ -71,6 +75,8 @@ export class InputManager {
       skill: options?.actionBindings?.skill ?? DEFAULT_BINDINGS.skill,
       potionHp: options?.actionBindings?.potionHp ?? DEFAULT_BINDINGS.potionHp,
       potionMp: options?.actionBindings?.potionMp ?? DEFAULT_BINDINGS.potionMp,
+      interact: options?.actionBindings?.interact ?? DEFAULT_BINDINGS.interact,
+      inventory: options?.actionBindings?.inventory ?? DEFAULT_BINDINGS.inventory,
     };
 
     this.handleKeyDown = (event: KeyboardEvent): void => {

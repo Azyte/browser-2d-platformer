@@ -1,5 +1,5 @@
 import { GameLoop } from './core/GameLoop';
-import { InputManager } from './core/InputManager';
+import { InputManager, type InputAction } from './core/InputManager';
 import { World } from './ecs/World';
 import { Camera2D } from './render/Camera2D';
 import { TransformComponent } from './physics/TransformComponent';
@@ -25,6 +25,9 @@ import { QuestManager } from './rpg/QuestSystem';
 import { LootSystem } from './rpg/LootSystem';
 import { SoundSynthesizer } from './audio/SoundSynthesizer';
 import { DebugRenderSystem } from './render/DebugRenderSystem';
+import { NPCComponent, NPCSystem, createElderRowanDialogue } from './rpg/NPCSystem';
+import { InventoryComponent, InventorySystem, createStarterInventory } from './rpg/InventorySystem';
+import { DayNightSystem } from './rpg/DayNightSystem';
 import type { Entity } from './ecs/Entity';
 
 // ============================================================================
@@ -49,7 +52,7 @@ app.innerHTML = `
             ⚔️ Aethelgard 2D: Top-Down MMORPG Engine
           </h1>
           <p style="color: #8b949e; margin: 4px 0 0 0; font-size: 12px;">
-            Simulated MMO World - Custom ECS, Depth Y-Sorting, Autonomous Bots & Quests (GDGoC Portfolio)
+            Simulated MMO World: Custom ECS, Depth Y-Sorting, NPCs, Equipment & Day/Night (GDGoC Portfolio)
           </p>
         </div>
         <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
@@ -69,6 +72,10 @@ app.innerHTML = `
           <div style="font-size: 16px; font-weight: bold; margin-top: 2px;">
             <span id="fps-val" style="color: #3fb950;">0</span> / <span id="ups-val" style="color: #58a6ff;">0</span>
           </div>
+        </div>
+        <div style="background: #161b22; padding: 8px 12px; border-radius: 6px; border: 1px solid #30363d;">
+          <div style="color: #8b949e; font-size: 10px; font-weight: 500;">World Clock</div>
+          <div id="clock-val" style="font-size: 14px; font-weight: bold; color: #f0c674; margin-top: 2px;">10:00 DAY</div>
         </div>
         <div style="background: #161b22; padding: 8px 12px; border-radius: 6px; border: 1px solid #30363d;">
           <div style="color: #8b949e; font-size: 10px; font-weight: 500;">Hero Level</div>
@@ -135,17 +142,23 @@ app.innerHTML = `
         </div>
 
         <!-- Virtual Action Buttons -->
-        <div style="display: flex; gap: 6px; user-select: none;">
-          <button id="touch-attack" style="width: 48px; height: 48px; background: #da3633; border: 1px solid #f85149; color: #ffffff; border-radius: 50%; font-size: 11px; font-weight: bold; cursor: pointer;">
+        <div style="display: flex; gap: 5px; user-select: none; flex-wrap: wrap;">
+          <button id="touch-attack" style="width: 44px; height: 44px; background: #da3633; border: 1px solid #f85149; color: #ffffff; border-radius: 50%; font-size: 10px; font-weight: bold; cursor: pointer;">
             ATK
           </button>
-          <button id="touch-skill" style="width: 48px; height: 48px; background: #8957e5; border: 1px solid #bc8cff; color: #ffffff; border-radius: 50%; font-size: 10px; font-weight: bold; cursor: pointer;">
+          <button id="touch-skill" style="width: 44px; height: 44px; background: #8957e5; border: 1px solid #bc8cff; color: #ffffff; border-radius: 50%; font-size: 9px; font-weight: bold; cursor: pointer;">
             SKILL
           </button>
-          <button id="touch-hp" style="width: 42px; height: 42px; background: #238636; border: 1px solid #3fb950; color: #ffffff; border-radius: 50%; font-size: 10px; font-weight: bold; cursor: pointer; align-self: center;">
+          <button id="touch-talk" style="width: 44px; height: 44px; background: #d29922; border: 1px solid #f0c674; color: #ffffff; border-radius: 50%; font-size: 9px; font-weight: bold; cursor: pointer;">
+            TALK
+          </button>
+          <button id="touch-bag" style="width: 44px; height: 44px; background: #0969da; border: 1px solid #58a6ff; color: #ffffff; border-radius: 50%; font-size: 9px; font-weight: bold; cursor: pointer;">
+            BAG
+          </button>
+          <button id="touch-hp" style="width: 38px; height: 38px; background: #238636; border: 1px solid #3fb950; color: #ffffff; border-radius: 50%; font-size: 9px; font-weight: bold; cursor: pointer; align-self: center;">
             HP
           </button>
-          <button id="touch-mp" style="width: 42px; height: 42px; background: #1f6feb; border: 1px solid #58a6ff; color: #ffffff; border-radius: 50%; font-size: 10px; font-weight: bold; cursor: pointer; align-self: center;">
+          <button id="touch-mp" style="width: 38px; height: 38px; background: #1f6feb; border: 1px solid #58a6ff; color: #ffffff; border-radius: 50%; font-size: 9px; font-weight: bold; cursor: pointer; align-self: center;">
             MP
           </button>
         </div>
@@ -155,18 +168,19 @@ app.innerHTML = `
       <div style="margin-top: 12px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; width: 100%; box-sizing: border-box;">
         <div style="background: #161b22; padding: 12px 14px; border-radius: 6px; border: 1px solid #30363d; font-size: 12px; line-height: 1.6;">
           <div style="font-weight: 600; color: #79c0ff; margin-bottom: 6px;">🎮 Keyboard & Gamepad:</div>
-          <div><strong style="color: #e6edf3;">[W, A, S, D]</strong> or <strong style="color: #e6edf3;">[Panah]</strong>: Jalan 8 Arah (Normalisasi diagonal)</div>
-          <div><strong style="color: #e6edf3;">[Space]</strong> or <strong style="color: #e6edf3;">[J]</strong>: Basic Attack Tebasan Pedang</div>
-          <div><strong style="color: #e6edf3;">[K]</strong> or <strong style="color: #e6edf3;">[1]</strong>: Whirlwind Slash (20 MP, 75px Area, 2.2x Damage)</div>
-          <div><strong style="color: #e6edf3;">[Q]</strong>: Minum HP Potion (+50 HP) | <strong style="color: #e6edf3;">[E]</strong>: MP Potion (+35 MP)</div>
+          <div><strong style="color: #e6edf3;">[W, A, S, D]</strong>: Jalan 8 Arah (Normalisasi diagonal)</div>
+          <div><strong style="color: #e6edf3;">[Space / J]</strong>: Basic Attack | <strong style="color: #e6edf3;">[K / 1]</strong>: Whirlwind Slash</div>
+          <div><strong style="color: #e6edf3;">[F]</strong>: Bicara dengan NPC (Tetua Rowan) / Dialog Interaktif</div>
+          <div><strong style="color: #e6edf3;">[I / B]</strong>: Buka/Tutup Tas & Equipment Modal</div>
+          <div><strong style="color: #e6edf3;">[1-3]</strong>: Opsi Dialog | <strong style="color: #e6edf3;">[Q / E]</strong>: Minum HP/MP Potion</div>
           <div><strong style="color: #e6edf3;">[F3]</strong>: Toggle Engine Debug Hitboxes & AI Radar</div>
         </div>
         <div style="background: #161b22; padding: 12px 14px; border-radius: 6px; border: 1px solid #30363d; font-size: 12px; color: #8b949e; line-height: 1.5;">
           <div style="font-weight: 600; color: #e3b341; margin-bottom: 4px;">✨ Fitur Unggulan Engine:</div>
-          <div>- Bot pemain otonom berburu dan chatting secara dinamis.</div>
-          <div>- Depth Y-Sorting: Karakter melangkah di depan/belakang pohon.</div>
-          <div>- Stress Test: Klik tombol +20 Slimes untuk menguji performa 60 FPS.</div>
-          <div>- Web Audio Synthesizer: Suara retro prosedural tanpa file eksternal.</div>
+          <div>- Dialog Interaktif: Bicara dengan Tetua Rowan untuk berkah & petunjuk.</div>
+          <div>- Visual Inventory & Equipment: Kelola tas dan gear secara real-time.</div>
+          <div>- Day/Night & Radial Lighting: Siklus dinamis dengan lentera obor.</div>
+          <div>- Depth Y-Sorting: Karakter melangkah di depan/belakang pohon & NPC.</div>
         </div>
       </div>
     </div>
@@ -181,6 +195,7 @@ if (!ctx) throw new Error('Canvas 2D context tidak didukung');
 
 const fpsEl = document.querySelector<HTMLSpanElement>('#fps-val')!;
 const upsEl = document.querySelector<HTMLSpanElement>('#ups-val')!;
+const clockEl = document.querySelector<HTMLDivElement>('#clock-val')!;
 const playerLvlEl = document.querySelector<HTMLDivElement>('#player-lvl')!;
 const playerGoldEl = document.querySelector<HTMLDivElement>('#player-gold')!;
 const entitiesEl = document.querySelector<HTMLDivElement>('#entities-val')!;
@@ -199,6 +214,8 @@ const touchLeft = document.querySelector<HTMLButtonElement>('#touch-left')!;
 const touchRight = document.querySelector<HTMLButtonElement>('#touch-right')!;
 const touchAttack = document.querySelector<HTMLButtonElement>('#touch-attack')!;
 const touchSkill = document.querySelector<HTMLButtonElement>('#touch-skill')!;
+const touchTalk = document.querySelector<HTMLButtonElement>('#touch-talk')!;
+const touchBag = document.querySelector<HTMLButtonElement>('#touch-bag')!;
 const touchHp = document.querySelector<HTMLButtonElement>('#touch-hp')!;
 const touchMp = document.querySelector<HTMLButtonElement>('#touch-mp')!;
 
@@ -210,6 +227,9 @@ const input = new InputManager();
 const chatManager = new ChatManager();
 const questManager = new QuestManager();
 const lootSystem = new LootSystem();
+const npcSystem = new NPCSystem();
+const inventorySystem = new InventorySystem();
+const dayNightSystem = new DayNightSystem({ cycleDurationSeconds: 180, initialHour: 10.0 });
 const soundSynth = new SoundSynthesizer({ enabled: true, volume: 0.3 });
 const debugSystem = new DebugRenderSystem();
 const world = new World();
@@ -236,7 +256,9 @@ const mmoRenderSystem = new MMORenderSystem(
   WORLD_WIDTH,
   WORLD_HEIGHT,
   chatManager,
-  questManager
+  questManager,
+  npcSystem,
+  dayNightSystem
 );
 
 // Toggle Debug Overlay
@@ -289,7 +311,7 @@ btnChatHeal.addEventListener('click', () => {
 });
 
 // Virtual Touch Pad Handlers (Mendukung sentuhan mobile & klik mouse)
-function bindTouchButton(el: HTMLElement, action: 'up' | 'down' | 'left' | 'right' | 'attack' | 'skill' | 'potionHp' | 'potionMp') {
+function bindTouchButton(el: HTMLElement, action: InputAction) {
   const down = (e: Event) => {
     e.preventDefault();
     soundSynth.initContext();
@@ -312,6 +334,8 @@ bindTouchButton(touchLeft, 'left');
 bindTouchButton(touchRight, 'right');
 bindTouchButton(touchAttack, 'attack');
 bindTouchButton(touchSkill, 'skill');
+bindTouchButton(touchTalk, 'interact');
+bindTouchButton(touchBag, 'inventory');
 bindTouchButton(touchHp, 'potionHp');
 bindTouchButton(touchMp, 'potionMp');
 
@@ -429,12 +453,33 @@ world.addComponent(
   player,
   new MMOVisualComponent({ width: 32, height: 32, visualType: 'player', color: '#3fb950' })
 );
+world.addComponent(player, createStarterInventory());
 
 camera.follow(400, 350, true);
 
 // ============================================================================
-// 5. SPAWN BOT PEMAIN
+// 4b. SPAWN NPC INTERAKTIF (TETUA ROWAN)
 // ============================================================================
+
+const elderRowan = world.createEntity();
+world.addComponent(elderRowan, new TransformComponent(450, 310));
+world.addComponent(elderRowan, new ColliderComponent(24, 24, 4, 4, true));
+world.addComponent(elderRowan, new SolidObstacleComponent());
+world.addComponent(
+  elderRowan,
+  new NPCComponent({
+    npcId: 'elder_rowan',
+    name: 'Elder Rowan',
+    title: 'Town Elder & Sage',
+    dialogueTree: createElderRowanDialogue(),
+    interactionRadius: 65,
+  })
+);
+world.addComponent(elderRowan, new NameplateComponent('Elder Rowan', 'npc', 'Town Elder & Sage', false));
+world.addComponent(
+  elderRowan,
+  new MMOVisualComponent({ width: 32, height: 32, visualType: 'npc', color: '#1b4d3e' })
+);
 
 function createBotPlayer(
   x: number,
@@ -635,33 +680,64 @@ function findNearestMonster(
 
 const loop = new GameLoop({
   update: (fixedDt: number) => {
+    // 0. Update Siklus Siang/Malam Dunia
+    dayNightSystem.update(fixedDt);
+
     const playerTrans = world.getComponent(player, TransformComponent);
     const playerVel = world.getComponent(player, VelocityComponent);
     const playerStats = world.getComponent(player, StatsComponent);
     const playerCombat = world.getComponent(player, CombatComponent);
 
+    // Cek NPC terdekat untuk prompt interaksi [F]
+    npcSystem.checkNearbyNPC(world, player);
+
     // 1. Kontrol Pergerakan Pemain (WASD / Arrows / Touch D-pad)
     if (playerTrans && playerVel && playerStats && playerStats.hp > 0) {
-      let dx = 0;
-      let dy = 0;
-      if (input.isActionDown('left')) dx -= 1;
-      if (input.isActionDown('right')) dx += 1;
-      if (input.isActionDown('up')) dy -= 1;
-      if (input.isActionDown('down')) dy += 1;
-
-      const len = Math.sqrt(dx * dx + dy * dy);
-      const speed = 190;
-
-      if (len > 0) {
-        playerVel.vx = (dx / len) * speed;
-        playerVel.vy = (dy / len) * speed;
-      } else {
+      if (npcSystem.isDialogueOpen) {
+        // Kunci posisi pemain saat sedang berdialog dengan NPC
         playerVel.vx = 0;
         playerVel.vy = 0;
+      } else {
+        let dx = 0;
+        let dy = 0;
+        if (input.isActionDown('left')) dx -= 1;
+        if (input.isActionDown('right')) dx += 1;
+        if (input.isActionDown('up')) dy -= 1;
+        if (input.isActionDown('down')) dy += 1;
+
+        const len = Math.sqrt(dx * dx + dy * dy);
+        const speed = 190;
+
+        if (len > 0) {
+          playerVel.vx = (dx / len) * speed;
+          playerVel.vy = (dy / len) * speed;
+        } else {
+          playerVel.vx = 0;
+          playerVel.vy = 0;
+        }
       }
 
-      // 2. Aksi Tempur: Basic Attack (Space / J / Touch ATK)
-      if (input.isActionJustPressed('attack') && playerCombat) {
+      // 2. Aksi Interaksi NPC: Bicara / Lanjut Dialog (F / Touch TALK)
+      if (input.isActionJustPressed('interact')) {
+        if (npcSystem.isDialogueOpen) {
+          npcSystem.closeDialogue();
+        } else if (npcSystem.nearbyNPC) {
+          npcSystem.startDialogue(npcSystem.nearbyNPC, world);
+          soundSynth.playQuestComplete();
+        }
+      }
+
+      // 3. Aksi Buka/Tutup Inventaris & Equipment (I / B / Touch BAG)
+      if (input.isActionJustPressed('inventory')) {
+        const pInv = world.getComponent(player, InventoryComponent);
+        if (pInv) {
+          inventorySystem.toggle(pInv);
+          soundSynth.playHit();
+        }
+      }
+
+      // 4. Aksi Tempur: Basic Attack (Space / J / Touch ATK)
+      if (input.isActionJustPressed('attack') && playerCombat && !npcSystem.isDialogueOpen) {
         playerCombat.isAttacking = true;
         soundSynth.playAttack();
 
@@ -672,8 +748,8 @@ const loop = new GameLoop({
         }
       }
 
-      // 3. Aksi Tempur: Whirlwind Slash (K / 1 / Touch SKILL)
-      if (input.isActionJustPressed('skill') && playerCombat) {
+      // 5. Aksi Tempur: Whirlwind Slash (K / 1 / Touch SKILL)
+      if (input.isActionJustPressed('skill') && playerCombat && !npcSystem.isDialogueOpen) {
         const target = findNearestMonster(playerTrans.x + 16, playerTrans.y + 16, playerCombat.skillRange);
         if (target) {
           combatSystem.executeSkill(world, player, target.entity);
@@ -693,7 +769,7 @@ const loop = new GameLoop({
         }
       }
 
-      // 4. Minum Potion (Q = HP, E = MP, Touch HP/MP)
+      // 6. Minum Potion (Q = HP, E = MP, Touch HP/MP)
       if (input.isActionJustPressed('potionHp')) {
         if (combatSystem.useHpPotion(playerStats)) {
           soundSynth.playPotion();
@@ -823,6 +899,7 @@ const loop = new GameLoop({
     // 3. Update metrik ke dashboard HTML
     fpsEl.textContent = loop.fps.toString();
     upsEl.textContent = loop.ups.toString();
+    clockEl.textContent = `${dayNightSystem.getTimeString()} ${dayNightSystem.getPhase().toUpperCase()}`;
     entitiesEl.textContent = mmoRenderSystem.visibleEntitiesCount.toString();
 
     const pStats = world.getComponent(player, StatsComponent);
@@ -831,6 +908,141 @@ const loop = new GameLoop({
       playerGoldEl.textContent = `${pStats.gold} G`;
     }
   },
+});
+
+// ============================================================================
+// 8. INTERAKSI INPUT KEYBOARD & CLICK UNTUK DIALOG & INVENTARIS
+// ============================================================================
+
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'Escape') {
+    if (npcSystem.isDialogueOpen) {
+      npcSystem.closeDialogue();
+    }
+    const pInv = world.getComponent(player, InventoryComponent);
+    if (pInv && pInv.isOpen) {
+      pInv.isOpen = false;
+    }
+  }
+
+  // Angka 1-3 saat Dialog Terbuka
+  if (npcSystem.isDialogueOpen) {
+    if (e.code === 'Digit1' || e.code === 'Numpad1') {
+      npcSystem.chooseOption(0, world, player, chatManager, combatSystem, soundSynth);
+    } else if (e.code === 'Digit2' || e.code === 'Numpad2') {
+      npcSystem.chooseOption(1, world, player, chatManager, combatSystem, soundSynth);
+    } else if (e.code === 'Digit3' || e.code === 'Numpad3') {
+      npcSystem.chooseOption(2, world, player, chatManager, combatSystem, soundSynth);
+    }
+  } else {
+    // Angka 1-8 saat Inventaris Terbuka
+    const pInv = world.getComponent(player, InventoryComponent);
+    const pStats = world.getComponent(player, StatsComponent);
+    if (pInv && pInv.isOpen && pStats) {
+      const match = e.code.match(/Digit([1-8])/);
+      if (match) {
+        const slotIdx = parseInt(match[1], 10) - 1;
+        const item = pInv.slots[slotIdx];
+        if (item) {
+          if (item.type === 'weapon' || item.type === 'armor' || item.type === 'accessory') {
+            pInv.equipItem(slotIdx, pStats);
+            soundSynth.playHit();
+          } else if (item.type === 'consumable') {
+            pInv.useItem(slotIdx, pStats);
+            soundSynth.playPotion();
+          }
+        }
+      }
+    }
+  }
+});
+
+// Penanganan Klik Mouse / Sentuhan pada Canvas untuk Dialog & Inventaris
+canvas.addEventListener('click', (e) => {
+  soundSynth.initContext();
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = CANVAS_WIDTH / rect.width;
+  const scaleY = CANVAS_HEIGHT / rect.height;
+  const clickX = (e.clientX - rect.left) * scaleX;
+  const clickY = (e.clientY - rect.top) * scaleY;
+
+  // 1. Klik Opsi Dialog NPC
+  if (npcSystem.isDialogueOpen) {
+    const mw = Math.min(680, CANVAS_WIDTH - 40);
+    const mx = Math.round((CANVAS_WIDTH - mw) / 2);
+    const my = CANVAS_HEIGHT - 145 - 20;
+
+    let optY = my + 92;
+    const node = npcSystem.getCurrentNode(world);
+    if (node) {
+      for (let i = 0; i < node.options.length; i++) {
+        if (clickX >= mx + 72 && clickX <= mx + mw - 18 && clickY >= optY - 11 && clickY <= optY + 7) {
+          npcSystem.chooseOption(i, world, player, chatManager, combatSystem, soundSynth);
+          return;
+        }
+        optY += 18;
+      }
+    }
+    return;
+  }
+
+  // 2. Klik Item atau Perlengkapan pada Inventaris
+  const pInv = world.getComponent(player, InventoryComponent);
+  const pStats = world.getComponent(player, StatsComponent);
+  if (pInv && pInv.isOpen && pStats) {
+    const mw = Math.min(520, CANVAS_WIDTH - 30);
+    const mh = 310;
+    const mx = Math.round((CANVAS_WIDTH - mw) / 2);
+    const my = Math.round((CANVAS_HEIGHT - mh) / 2);
+
+    // Klik tombol close [X] di pojok kanan header
+    if (clickX >= mx + mw - 30 && clickX <= mx + mw && clickY >= my && clickY <= my + 28) {
+      pInv.isOpen = false;
+      return;
+    }
+
+    // Klik slot tas 4x4
+    const rightX = mx + 14 + 195;
+    const rightY = my + 38;
+    const slotSize = 36;
+    const gap = 6;
+    for (let i = 0; i < pInv.maxSlots; i++) {
+      const col = i % 4;
+      const row = Math.floor(i / 4);
+      const sx = rightX + col * (slotSize + gap);
+      const sy = rightY + 8 + row * (slotSize + gap);
+
+      if (clickX >= sx && clickX <= sx + slotSize && clickY >= sy && clickY <= sy + slotSize) {
+        pInv.selectedSlotIndex = i;
+        const it = pInv.slots[i];
+        if (it) {
+          if (it.type === 'weapon' || it.type === 'armor' || it.type === 'accessory') {
+            pInv.equipItem(i, pStats);
+            soundSynth.playHit();
+          } else if (it.type === 'consumable') {
+            pInv.useItem(i, pStats);
+            soundSynth.playPotion();
+          }
+        }
+        return;
+      }
+    }
+
+    // Klik lepas perlengkapan (unequip)
+    const leftX = mx + 14;
+    let eqY = my + 38 + 8;
+    const slots: ('weapon' | 'armor' | 'accessory')[] = ['weapon', 'armor', 'accessory'];
+    for (const slotKey of slots) {
+      if (clickX >= leftX && clickX <= leftX + 180 && clickY >= eqY && clickY <= eqY + 26) {
+        if (pInv.equipment[slotKey]) {
+          pInv.unequipItem(slotKey, pStats);
+          soundSynth.playHit();
+        }
+        return;
+      }
+      eqY += 30;
+    }
+  }
 });
 
 loop.start();

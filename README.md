@@ -4,7 +4,7 @@
 > Dibuat sebagai portofolio seleksi **Google Developer Group on Campus (GDGoC) Universitas Gunadarma (Jalur Hacker)**.
 
 🎮 **Live Demo GitHub Pages**: [https://azyte.github.io/browser-2d-platformer/](https://azyte.github.io/browser-2d-platformer/)  
-📦 **Unit Test Suite**: 17 Test Suites, **78 Unit Tests 100% Passing**
+📦 **Unit Test Suite**: 20 Test Suites, **92 Unit Tests 100% Passing**
 
 ---
 
@@ -18,7 +18,7 @@
 ### 2. Type-Safe Data-Oriented ECS (Entity-Component-System)
 - Menggantikan hierarki pewarisan OOP yang kaku dengan arsitektur data murni berkinerja tinggi:
   - **Entity**: Integer ID unik.
-  - **Component**: Pure data container tanpa dependensi logika (*Transform, Velocity, Collider, Stats, Combat, Nameplate, MonsterAI, SimulatedPlayer, LootDrop*).
+  - **Component**: Pure data container tanpa dependensi logika (*Transform, Velocity, Collider, Stats, Combat, Nameplate, MonsterAI, SimulatedPlayer, LootDrop, NPCComponent, InventoryComponent*).
   - **System**: Fungsi pengolah yang memproses entitas berdasarkan query komponen secara batch.
 - Query didesain dengan memilih store komponen terkecil terlebih dahulu untuk efisiensi CPU cache.
 - Mekanisme `queueDestroy` untuk mencegah mutasi array saat query iterasi sedang berjalan di hot loop.
@@ -28,8 +28,8 @@
 - **Axis-Separated Sliding Collision**: Resolusi tabrakan terhadap rintangan lingkungan padat (pohon, batu granit, batas peta) diselesaikan secara independen pada sumbu X lalu Y. Karakter dapat meluncur mulus (*smooth sliding*) di sepanjang rintangan tanpa tersangkut.
 
 ### 4. Depth Y-Sorting (Z-Ordering 2.5D Perspective)
-- Objek dan karakter diurutkan secara dinamis berdasarkan posisi kaki (`baseY = y + height`).
-- Karakter dapat melangkah di balik kanopi daun pohon saat berada di atas batang pohon, dan tampil di depan batang pohon saat berjalan di bawahnya, menciptakan ilusi perspektif kedalaman nyata.
+- Objek, NPC, dan karakter diurutkan secara dinamis berdasarkan posisi alas kaki (`baseY = y + height`).
+- Karakter dapat melangkah di balik kanopi daun pohon atau di belakang NPC saat berada di atas posisinya, dan tampil di depan saat berjalan di bawahnya, menciptakan ilusi perspektif kedalaman nyata.
 
 ### 5. Sistem Tempur RPG & Progresi Level
 - Formula kalkulasi kerusakan fisik: `BaseDamage = max(1, Atk - TargetDef) * (isCrit ? CritMultiplier : 1.0)`.
@@ -50,7 +50,21 @@
   - **HealerKun** (High Cleric: Jubah liturgis putih-emas, lingkaran halo suci di atas kepala, gada matahari).
 - Bot secara mandiri mencari monster, bertarung, meminum potion jika darah sekarat (<30%), dan mengobrol secara dinamis di log percakapan global.
 
-### 8. Procedural Web Audio SFX Synthesizer (Zero Asset Audio)
+### 8. Interactive NPC & Branching Dialogue System
+- **Tetua Rowan (Town Elder & Sage)**: NPC penjaga pusat Sanctuary dengan visual jubah zamrud, jenggot putih, tongkat kayu ek, dan floating golden quest marker (`!`).
+- **Proximity Prompt**: Mendeteksi jarak pemain dan menampilkan pill badge interaktif `[F] Talk to Elder Rowan`.
+- **Branching Dialogue Tree**: Dialog interaktif bercabang dengan pilihan numerik (1, 2, 3 atau klik mouse) untuk mendengarkan lore dunia, meminta Berkah Pemulihan Darah (Blessing of Sanctuary), dan pamit bertualang.
+
+### 9. Visual Inventory & Equipment Paperdoll Modal
+- **Equipment Slots**: Slot perlengkapan dinamis (Weapon, Armor, Accessory) yang langsung merefleksikan bonus serangan, pertahanan, dan darah maksimal ke status karakter.
+- **Bag Grid (16 Slots)**: Manajemen tas dengan penumpukan item otomatis (*item stacking*), pembagian kategori (Senjata, Zirah, Aksesori, Konsumsi, Material), dan badge kuantitas.
+- **Interactive Modal**: Tampilan modal RPG transparan yang dapat dibuka/tutup dengan tombol `[I]`, `[B]`, atau tombol sentuh `[BAG]`, lengkap dengan tooltip deskripsi dan aksi pasang/pakai langsung.
+
+### 10. Day/Night Dynamic Cycle & Radial Lighting
+- **Siklus Waktu 24 Jam**: Bergulir mulus melewati 4 fase (Fajar, Siang Cerah, Senja Lembayung, Malam Pekat).
+- **Radial Lighting Mask**: Menggunakan teknik `destination-out` dan gradien radial dinamis pada HTML5 Canvas untuk memotong kegelapan malam di sekitar sumber cahaya (obor pemain, lentera bot, api unggun perkemahan, dan aura ungu Fenrir).
+
+### 11. Procedural Web Audio SFX Synthesizer (Zero Asset Audio)
 - Menghasilkan efek suara retro/arcade 16-bit secara langsung dari kode melalui Web Audio API tanpa perlu mengunduh file `.mp3` atau `.wav`:
   - Tebasan pedang (*Sawtooth pitch slide*)
   - Benturan pukulan & Critical Hit (*Metallic chime + punchy bass*)
@@ -59,13 +73,13 @@
   - Fanfare kenaikan level (*Triumphant major arpeggio C-E-G-C*)
   - Pengambilan loot koin (*Chime sparkle*)
 
-### 9. Quest Tracker & Ground Loot Drops
+### 12. Quest Tracker & Ground Loot Drops
 - **Sistem Misi (Quests)**: Pelacak objektif perburuan monster berhadiah koin emas dan EXP.
 - **Loot Drop di Tanah**: Monster menjatuhkan kantong koin emas berkilauan, botol ramuan, dan item langka (*Fenrir Crest*) yang dapat diambil saat pemain mendekatinya (*auto-pickup*).
 
-### 10. Engine Debug Overlay (F3) & Mobile Gamepad
+### 13. Engine Debug Overlay (F3) & Mobile Gamepad
 - **Tombol F3 / Debug UI**: Menampilkan visualisasi kotak tabrakan (*AABB hitboxes* warna hijau untuk entitas, merah untuk rintangan padat), lingkaran radius Aggro (kuning) & Leash (oranye) monster, dan vektor kecepatan.
-- **Mobile Virtual Touch Gamepad**: D-Pad dan tombol aksi sentuh (ATK, SKILL, HP, MP) di bawah canvas yang mendukung layar sentuh smartphone maupun klik mouse desktop.
+- **Mobile Virtual Touch Gamepad**: D-Pad dan tombol aksi sentuh (ATK, SKILL, TALK, BAG, HP, MP) di bawah canvas yang mendukung layar sentuh smartphone maupun klik mouse desktop.
 - **Stress Test Tool**: Tombol `+20 Slimes` dan `+4 Bots` untuk menguji stabilitas FPS engine di bawah beban puluhan entitas aktif.
 
 ---
@@ -77,8 +91,13 @@
 | **W, A, S, D** / **Panah** | **D-Pad (▲, ▼, ◄, ►)** | Jalan 8 Arah (Normalisasi diagonal) |
 | **Space** / **J** | **ATK** | Serangan Dasar Pedang (Basic Attack) |
 | **K** / **1** | **SKILL** | Jurus Area Whirlwind Slash (20 MP) |
+| **F** | **TALK** | Bicara dengan NPC (Tetua Rowan) / Dialog Interaktif |
+| **I** / **B** | **BAG** | Buka / Tutup Tas Inventaris & Equipment Paperdoll |
+| **1, 2, 3** | **Klik Mouse / Touch** | Memilih Opsi Jawaban Dialog NPC |
+| **1 s/d 8** | **Klik Slot** | Memasang / Menggunakan Item dari Tas Inventaris |
 | **Q** | **HP** | Minum Ramuan Darah (+50 HP) |
 | **E** | **MP** | Minum Ramuan Mana (+35 MP) |
+| **Escape** | **[X] Close** | Menutup Jendela Dialog NPC atau Modal Inventaris |
 | **F3** / Tombol UI | **Debug Button** | Toggle Visualisasi Hitbox & Radar AI |
 
 ---
@@ -86,10 +105,10 @@
 ## 🛠️ Tech Stack & Standar Kualitas
 
 - **Bahasa**: TypeScript (Strict Mode: `noImplicitAny`, `strictNullChecks`, `noUnusedLocals`, `exactOptionalPropertyTypes`)
-- **Rendering**: HTML5 Canvas 2D API (60 FPS Fixed Timestep + Alpha Interpolation)
+- **Rendering**: HTML5 Canvas 2D API (60 FPS Fixed Timestep + Alpha Interpolation + Radial Lighting Masks)
 - **Audio**: Web Audio API (Synthesizer Prosedural)
 - **Bundler**: Vite
-- **Testing**: Vitest (17 Test Suites, 78 Unit Tests)
+- **Testing**: Vitest (20 Test Suites, 92 Unit Tests 100% Passing)
 - **Deployment**: GitHub Pages CI/CD Workflow
 
 ---

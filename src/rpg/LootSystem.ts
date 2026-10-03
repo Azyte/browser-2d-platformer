@@ -2,6 +2,7 @@ import type { Entity } from '../ecs/Entity';
 import type { World } from '../ecs/World';
 import { TransformComponent } from '../physics/TransformComponent';
 import { StatsComponent } from './RPGComponents';
+import { InventoryComponent } from './InventorySystem';
 import type { CombatSystem } from './CombatSystem';
 import type { ChatManager } from './ChatSystem';
 import type { SoundSynthesizer } from '../audio/SoundSynthesizer';
@@ -110,6 +111,42 @@ export class LootSystem {
               }
             }
             break;
+        }
+
+        // Sinkronisasi dengan InventoryComponent pemain jika ada
+        const inv = world.getComponent(player, InventoryComponent);
+        if (inv) {
+          if (loot.itemType === 'equipment') {
+            inv.addItem({
+              id: loot.itemName.toLowerCase().replace(/\s+/g, '_'),
+              name: loot.itemName,
+              type: 'accessory',
+              rarity: 'epic',
+              description: 'A legendary trophy of heroic triumph.',
+              quantity: 1,
+              statBonus: loot.statBonus,
+            });
+          } else if (loot.itemType === 'potion_hp') {
+            inv.addItem({
+              id: 'potion_hp',
+              name: 'Health Potion',
+              type: 'consumable',
+              rarity: 'common',
+              description: 'Restores 50 HP.',
+              quantity: loot.value,
+              healHp: 50,
+            });
+          } else if (loot.itemType === 'potion_mp') {
+            inv.addItem({
+              id: 'potion_mp',
+              name: 'Mana Potion',
+              type: 'consumable',
+              rarity: 'common',
+              description: 'Restores 35 MP.',
+              quantity: loot.value,
+              healMp: 35,
+            });
+          }
         }
 
         // Floating text & notifikasi chat

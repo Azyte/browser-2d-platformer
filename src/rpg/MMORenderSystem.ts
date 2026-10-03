@@ -12,6 +12,10 @@ import {
 } from './RPGComponents';
 import type { ChatManager } from './ChatSystem';
 import type { QuestManager } from './QuestSystem';
+import { NPCComponent, type NPCSystem } from './NPCSystem';
+import { InventoryComponent } from './InventorySystem';
+import type { DayNightSystem, LightSource } from './DayNightSystem';
+import { SimulatedPlayerComponent } from './RPGComponents';
 
 export type MMOVisualType =
   | 'player'
@@ -23,7 +27,8 @@ export type MMOVisualType =
   | 'tree'
   | 'rock'
   | 'water'
-  | 'campfire';
+  | 'campfire'
+  | 'npc';
 
 export interface MMOVisualOptions {
   width?: number;
@@ -128,7 +133,9 @@ export class MMORenderSystem implements System {
     private readonly worldWidth: number,
     private readonly worldHeight: number,
     private readonly chatManager?: ChatManager,
-    private readonly questManager?: QuestManager
+    private readonly questManager?: QuestManager,
+    private readonly npcSystem?: NPCSystem,
+    private readonly dayNightSystem?: DayNightSystem
   ) {}
 
   /**
@@ -204,10 +211,32 @@ export class MMORenderSystem implements System {
     // 4. Render Floating Damage Text di koordinat dunia
     this.renderFloatingTexts(world, ctx, cam, alpha);
 
+    // 4b. Overhead Prompt Interaksi NPC terdekat
+    this.renderNPCInteractionPrompt(world, ctx);
+
     ctx.restore();
+
+    // 4c. Render Radial Lighting (Malam, fajar, senja & lentera obor)
+    if (this.dayNightSystem) {
+      const lights = this.collectLightSources(world, mainPlayerEntity, alpha);
+      this.dayNightSystem.renderLighting(ctx, cam, lights);
+    }
 
     // 5. Render HUD Statis di Layar Browser (Screen Space)
     this.renderHUD(ctx, world, mainPlayerEntity);
+
+    // 6. Render Overlays: Modal Dialog NPC & Modal Inventaris Tas
+    if (this.npcSystem && this.npcSystem.isDialogueOpen) {
+      this.renderDialogueModal(ctx, world);
+    }
+
+    if (mainPlayerEntity) {
+      const inv = world.getComponent(mainPlayerEntity, InventoryComponent);
+      const stats = world.getComponent(mainPlayerEntity, StatsComponent);
+      if (inv && inv.isOpen && stats) {
+        this.renderInventoryModal(ctx, inv, stats);
+      }
+    }
   }
 
   /**
@@ -563,6 +592,56 @@ export class MMORenderSystem implements System {
         break;
       }
 
+      case 'npc': {
+        // NPC Tetua Rowan: Jubah hijau zamrud & emas, jenggot putih, tongkat kayu ek, permata penuntun
+        ctx.fillStyle = '#1b4d3e';
+        ctx.fillRect(rx + 5, ry + 6, w - 10, h - 7);
+
+        // Selendang amber emas
+        ctx.fillStyle = '#e3b341';
+        ctx.fillRect(rx + 8, ry + 8, w - 16, 4);
+
+        // Wajah bijak & jenggot putih panjang
+        ctx.fillStyle = '#ffe0bd';
+        ctx.fillRect(rx + 10, ry + 5, w - 20, 6);
+        ctx.fillStyle = '#f0f6fc';
+        ctx.fillRect(rx + 9, ry + 11, w - 18, 9);
+
+        // Topi tudung bijak
+        ctx.fillStyle = '#0f2f26';
+        ctx.beginPath();
+        ctx.moveTo(rx + 6, ry + 6);
+        ctx.lineTo(cx, ry - 3);
+        ctx.lineTo(rx + w - 6, ry + 6);
+        ctx.fill();
+
+        // Tongkat jalan kayu ek dengan kristal hijau
+        ctx.fillStyle = '#6e401f';
+        ctx.fillRect(rx + w - 4, ry + 3, 3, 22);
+        ctx.fillStyle = '#3fb950';
+        ctx.beginPath();
+        ctx.arc(rx + w - 3, ry + 2, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Floating Quest Marker di atas kepala NPC (Golden '!' bergoyang halus)
+        const markerBounce = Math.sin(this.animTimer * 5) * 3;
+        const iconY = ry - 22 + markerBounce;
+
+        ctx.fillStyle = '#e3b341';
+        ctx.beginPath();
+        ctx.arc(cx, iconY, 7, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+
+        ctx.fillStyle = '#161b22';
+        ctx.font = 'bold 10px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('!', cx, iconY + 3.5);
+        break;
+      }
+
       case 'bot': {
         // Visual khas sesuai nama dan kelas bot
         const botName = nameplate?.name ?? '';
@@ -802,6 +881,8 @@ export class MMORenderSystem implements System {
       nameColor = '#58a6ff';
     } else if (nameplate.role === 'other_player') {
       nameColor = '#79c0ff';
+    } else if (nameplate.role === 'npc') {
+      nameColor = '#f0c674';
     } else if (nameplate.role === 'monster' && stats.level >= 5) {
       nameColor = '#f0883e';
     }
@@ -813,7 +894,8 @@ export class MMORenderSystem implements System {
     }
 
     const titleText = nameplate.title ? `<${nameplate.title}> ` : '';
-    const label = `${titleText}[Lv.${stats.level}] ${nameplate.name}${statusTag}`;
+    const levelText = nameplate.role === 'npc' ? '' : `[Lv.${stats.level}] `;
+    const label = `${titleText}${levelText}${nameplate.name}${statusTag}`;
 
     // Outline gelap
     ctx.strokeStyle = '#000000';
@@ -949,11 +1031,14 @@ export class MMORenderSystem implements System {
     ctx.lineWidth = 1.5;
     ctx.strokeRect(x, y, w, h);
 
-    // Header radar
-    ctx.fillStyle = '#8b949e';
+    // Header radar menampilkan waktu dunia dan fase siang/malam
+    const timeLabel = this.dayNightSystem
+      ? `${this.dayNightSystem.getTimeString()} (${this.dayNightSystem.getPhase().toUpperCase()})`
+      : 'RADAR (CH 1)';
+    ctx.fillStyle = '#f0c674';
     ctx.font = '8px monospace';
     ctx.textAlign = 'left';
-    ctx.fillText('RADAR (CH 1)', x + 5, y + 10);
+    ctx.fillText(timeLabel, x + 5, y + 10);
 
     const scaleX = w / this.worldWidth;
     const scaleY = h / this.worldHeight;
@@ -968,7 +1053,33 @@ export class MMORenderSystem implements System {
     ctx.lineWidth = 1;
     ctx.strokeRect(camBoxX, camBoxY, camBoxW, camBoxH);
 
-    // Gambar titik entitas (Monsters, Bots, Player)
+    // Titik NPC di Minimap: titik emas
+    const npcs = world.query(NPCComponent, TransformComponent);
+    for (const npc of npcs) {
+      const nTrans = world.getComponent(npc, TransformComponent);
+      if (nTrans) {
+        const nx = x + nTrans.x * scaleX;
+        const ny = y + nTrans.y * scaleY;
+        ctx.fillStyle = '#e3b341';
+        ctx.beginPath();
+        ctx.arc(nx, ny, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Titik Bot Pemain di Minimap: titik biru langit
+    const bots = world.query(SimulatedPlayerComponent, TransformComponent);
+    for (const b of bots) {
+      const bTrans = world.getComponent(b, TransformComponent);
+      if (bTrans) {
+        const bx = x + bTrans.x * scaleX;
+        const by = y + bTrans.y * scaleY;
+        ctx.fillStyle = '#79c0ff';
+        ctx.fillRect(bx - 1, by - 1, 2, 2);
+      }
+    }
+
+    // Gambar titik monster
     const monsters = world.query(MonsterAIComponent, TransformComponent, StatsComponent);
     for (const m of monsters) {
       const trans = world.getComponent(m, TransformComponent);
@@ -989,7 +1100,7 @@ export class MMORenderSystem implements System {
       }
     }
 
-    // Titik Pemain Utama
+    // Titik Pemain Utama: titik hijau terang
     if (player) {
       const pTrans = world.getComponent(player, TransformComponent);
       if (pTrans) {
@@ -1222,5 +1333,425 @@ export class MMORenderSystem implements System {
 
       lineY += 15;
     }
+  }
+
+  /**
+   * Menampilkan prompt interaksi [F] di atas kepala NPC yang sedang didekati pemain.
+   */
+  private renderNPCInteractionPrompt(world: World, ctx: CanvasRenderingContext2D): void {
+    if (!this.npcSystem || !this.npcSystem.nearbyNPC || this.npcSystem.isDialogueOpen) return;
+
+    const nearbyTrans = world.getComponent(this.npcSystem.nearbyNPC, TransformComponent);
+    const nearbyComp = world.getComponent(this.npcSystem.nearbyNPC, NPCComponent);
+    if (!nearbyTrans || !nearbyComp) return;
+
+    const nx = nearbyTrans.x + 16;
+    const ny = nearbyTrans.y - 36;
+
+    ctx.save();
+    ctx.font = 'bold 10px monospace';
+    const text = `[F] Talk to ${nearbyComp.name}`;
+    const tw = ctx.measureText(text).width;
+
+    ctx.fillStyle = 'rgba(13, 17, 23, 0.9)';
+    ctx.beginPath();
+    ctx.roundRect(nx - tw / 2 - 8, ny - 10, tw + 16, 18, 5);
+    ctx.fill();
+
+    ctx.strokeStyle = '#e3b341';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+
+    ctx.fillStyle = '#f0c674';
+    ctx.textAlign = 'center';
+    ctx.fillText(text, nx, ny + 3);
+    ctx.restore();
+  }
+
+  /**
+   * Mengumpulkan seluruh sumber cahaya di dunia (pemain, api unggun, bot, boss).
+   */
+  private collectLightSources(
+    world: World,
+    player?: Entity | null,
+    alpha: number = 1.0
+  ): LightSource[] {
+    const lights: LightSource[] = [];
+
+    // 1. Obor / Lentera Pemain Utama
+    if (player) {
+      const pTrans = world.getComponent(player, TransformComponent);
+      if (pTrans) {
+        const px = pTrans.prevX + (pTrans.x - pTrans.prevX) * alpha + 16;
+        const py = pTrans.prevY + (pTrans.y - pTrans.prevY) * alpha + 16;
+        lights.push({
+          x: px,
+          y: py,
+          radius: 140,
+          intensity: 0.92,
+          color: 'rgba(255, 195, 80, 0.22)',
+        });
+      }
+    }
+
+    // 2. Api Unggun / Lentera Desa di Pusat Sanctuary
+    lights.push({
+      x: 430,
+      y: 350,
+      radius: 170,
+      intensity: 0.95,
+      color: 'rgba(255, 130, 40, 0.3)',
+    });
+
+    // 3. Lentera Bot Pemain
+    const bots = world.query(SimulatedPlayerComponent, TransformComponent);
+    for (const bot of bots) {
+      const bTrans = world.getComponent(bot, TransformComponent);
+      if (bTrans) {
+        const bx = bTrans.prevX + (bTrans.x - bTrans.prevX) * alpha + 16;
+        const by = bTrans.prevY + (bTrans.y - bTrans.prevY) * alpha + 16;
+        lights.push({
+          x: bx,
+          y: by,
+          radius: 80,
+          intensity: 0.75,
+          color: 'rgba(200, 225, 255, 0.15)',
+        });
+      }
+    }
+
+    // 4. Aura Ungu Berpendar dari World Boss Fenrir
+    const monsters = world.query(MonsterAIComponent, TransformComponent, StatsComponent);
+    for (const m of monsters) {
+      const stats = world.getComponent(m, StatsComponent);
+      const mTrans = world.getComponent(m, TransformComponent);
+      if (stats && mTrans && stats.level >= 7 && stats.hp > 0) {
+        const mx = mTrans.prevX + (mTrans.x - mTrans.prevX) * alpha + 27;
+        const my = mTrans.prevY + (mTrans.y - mTrans.prevY) * alpha + 27;
+        lights.push({
+          x: mx,
+          y: my,
+          radius: 160,
+          intensity: 0.85,
+          color: 'rgba(180, 90, 255, 0.25)',
+        });
+      }
+    }
+
+    return lights;
+  }
+
+  /**
+   * Merender Modal Percakapan Interaktif NPC di Layar Layar Browser.
+   */
+  private renderDialogueModal(ctx: CanvasRenderingContext2D, world: World): void {
+    if (!this.npcSystem || !this.npcSystem.isDialogueOpen || !this.npcSystem.activeNPC) return;
+
+    const npcComp = world.getComponent(this.npcSystem.activeNPC, NPCComponent);
+    const node = this.npcSystem.getCurrentNode(world);
+    if (!npcComp || !node) return;
+
+    const vw = this.camera.viewportWidth;
+    const vh = this.camera.viewportHeight;
+
+    const mw = Math.min(680, vw - 40);
+    const mh = 145;
+    const mx = Math.round((vw - mw) / 2);
+    const my = vh - mh - 20;
+
+    ctx.save();
+
+    // Box Dialog Latar Belakang
+    ctx.fillStyle = 'rgba(9, 13, 19, 0.95)';
+    ctx.fillRect(mx, my, mw, mh);
+    ctx.strokeStyle = '#e3b341';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(mx, my, mw, mh);
+
+    // Avatar Box
+    const avSize = 48;
+    const avX = mx + 14;
+    const avY = my + 14;
+    ctx.fillStyle = '#161b22';
+    ctx.fillRect(avX, avY, avSize, avSize);
+    ctx.strokeStyle = '#d29922';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(avX, avY, avSize, avSize);
+
+    // Avatar Tetua Rowan
+    ctx.fillStyle = '#1b4d3e';
+    ctx.fillRect(avX + 8, avY + 12, 32, 32);
+    ctx.fillStyle = '#ffe0bd';
+    ctx.fillRect(avX + 16, avY + 14, 16, 12);
+    ctx.fillStyle = '#f0f6fc';
+    ctx.fillRect(avX + 14, avY + 24, 20, 16);
+    ctx.fillStyle = '#e3b341';
+    ctx.beginPath();
+    ctx.moveTo(avX + 10, avY + 14);
+    ctx.lineTo(avX + 24, avY + 4);
+    ctx.lineTo(avX + 38, avY + 14);
+    ctx.fill();
+
+    // Nama & Gelar NPC
+    ctx.fillStyle = '#e3b341';
+    ctx.font = 'bold 12px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText(`${npcComp.name}`, mx + 72, my + 20);
+
+    ctx.fillStyle = '#8b949e';
+    ctx.font = '10px monospace';
+    ctx.fillText(`<${npcComp.title}>`, mx + 72, my + 34);
+
+    // Teks Isi Ucapan NPC
+    ctx.fillStyle = '#e6edf3';
+    ctx.font = '11px monospace';
+    const textX = mx + 72;
+    let textY = my + 50;
+
+    const words = node.npcText.split(' ');
+    let currentLine = '';
+    const maxLineW = mw - 90;
+
+    for (const w of words) {
+      const testLine = currentLine ? `${currentLine} ${w}` : w;
+      if (ctx.measureText(testLine).width > maxLineW) {
+        ctx.fillText(currentLine, textX, textY);
+        currentLine = w;
+        textY += 15;
+      } else {
+        currentLine = testLine;
+      }
+    }
+    if (currentLine) {
+      ctx.fillText(currentLine, textX, textY);
+    }
+
+    // Opsi Percabangan Dialog di Bagian Bawah
+    let optY = my + 92;
+    for (let i = 0; i < node.options.length; i++) {
+      const opt = node.options[i];
+      const optBoxH = 16;
+      ctx.fillStyle = '#161b22';
+      ctx.fillRect(mx + 72, optY - 11, mw - 90, optBoxH);
+      ctx.strokeStyle = '#30363d';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(mx + 72, optY - 11, mw - 90, optBoxH);
+
+      ctx.fillStyle = '#58a6ff';
+      ctx.font = '10px monospace';
+      ctx.fillText(`[${i + 1}] ${opt.text}`, mx + 76, optY + 1);
+      optY += 18;
+    }
+
+    ctx.restore();
+  }
+
+  /**
+   * Merender Modal Inventaris Tas & Perlengkapan Karakter (Equipment Paperdoll).
+   */
+  private renderInventoryModal(
+    ctx: CanvasRenderingContext2D,
+    inv: InventoryComponent,
+    stats: StatsComponent
+  ): void {
+    const vw = this.camera.viewportWidth;
+    const vh = this.camera.viewportHeight;
+
+    const mw = Math.min(520, vw - 30);
+    const mh = 310;
+    const mx = Math.round((vw - mw) / 2);
+    const my = Math.round((vh - mh) / 2);
+
+    ctx.save();
+
+    // Background Modal
+    ctx.fillStyle = 'rgba(13, 17, 23, 0.96)';
+    ctx.fillRect(mx, my, mw, mh);
+    ctx.strokeStyle = '#58a6ff';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(mx, my, mw, mh);
+
+    // Header Modal
+    ctx.fillStyle = '#161b22';
+    ctx.fillRect(mx, my, mw, 28);
+    ctx.strokeStyle = '#30363d';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(mx, my, mw, 28);
+
+    ctx.fillStyle = '#f0c674';
+    ctx.font = 'bold 12px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('🎒 Hero Inventory & Equipment (Press [I] to Close)', mx + 12, my + 18);
+
+    // Kolom Kiri: Slot Perlengkapan Terpasang
+    const leftX = mx + 14;
+    const leftY = my + 38;
+
+    ctx.fillStyle = '#79c0ff';
+    ctx.font = 'bold 10px monospace';
+    ctx.fillText('⚔️ Equipment Slots', leftX, leftY);
+
+    const equipSlots: { slot: 'weapon' | 'armor' | 'accessory'; label: string; icon: string }[] = [
+      { slot: 'weapon', label: 'Weapon', icon: '⚔️' },
+      { slot: 'armor', label: 'Armor', icon: '🛡️' },
+      { slot: 'accessory', label: 'Accessory', icon: '💍' },
+    ];
+
+    let eqY = leftY + 8;
+    for (const eq of equipSlots) {
+      const item = inv.equipment[eq.slot];
+      ctx.fillStyle = '#21262d';
+      ctx.fillRect(leftX, eqY, 180, 26);
+      ctx.strokeStyle = item ? '#e3b341' : '#30363d';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(leftX, eqY, 180, 26);
+
+      ctx.fillStyle = '#c9d1d9';
+      ctx.font = '9px monospace';
+      ctx.fillText(`${eq.icon} ${eq.label}:`, leftX + 4, eqY + 16);
+
+      if (item) {
+        ctx.fillStyle = '#58a6ff';
+        ctx.font = 'bold 9px monospace';
+        ctx.fillText(item.name.slice(0, 14), leftX + 75, eqY + 16);
+      } else {
+        ctx.fillStyle = '#6e7681';
+        ctx.font = 'italic 9px monospace';
+        ctx.fillText('(Empty)', leftX + 75, eqY + 16);
+      }
+      eqY += 30;
+    }
+
+    // Ringkasan Status Karakter di Kolom Kiri
+    const statBoxY = eqY + 4;
+    ctx.fillStyle = '#161b22';
+    ctx.fillRect(leftX, statBoxY, 180, 80);
+    ctx.strokeStyle = '#30363d';
+    ctx.strokeRect(leftX, statBoxY, 180, 80);
+
+    ctx.fillStyle = '#e6edf3';
+    ctx.font = 'bold 10px monospace';
+    ctx.fillText('📊 Character Stats', leftX + 6, statBoxY + 14);
+
+    ctx.font = '9px monospace';
+    ctx.fillStyle = '#ff7b72';
+    ctx.fillText(`Attack:  ${stats.attack}`, leftX + 8, statBoxY + 30);
+    ctx.fillStyle = '#79c0ff';
+    ctx.fillText(`Defense: ${stats.defense}`, leftX + 90, statBoxY + 30);
+
+    ctx.fillStyle = '#3fb950';
+    ctx.fillText(`Max HP:  ${stats.maxHp}`, leftX + 8, statBoxY + 46);
+    ctx.fillStyle = '#a371f7';
+    ctx.fillText(`Max MP:  ${stats.maxMp}`, leftX + 90, statBoxY + 46);
+
+    ctx.fillStyle = '#f0883e';
+    ctx.fillText(`Gold:    ${stats.gold} G`, leftX + 8, statBoxY + 62);
+    ctx.fillStyle = '#e3b341';
+    ctx.fillText(`Crit:    ${Math.round(stats.critChance * 100)}%`, leftX + 90, statBoxY + 62);
+
+    // Kolom Kanan: Grid 4x4 Tas Inventaris (16 Slot)
+    const rightX = leftX + 195;
+    const rightY = leftY;
+
+    ctx.fillStyle = '#79c0ff';
+    ctx.font = 'bold 10px monospace';
+    ctx.fillText('📦 Bag Items (1-8 to Use/Equip)', rightX, rightY);
+
+    const slotSize = 36;
+    const gap = 6;
+    const cols = 4;
+
+    for (let i = 0; i < inv.maxSlots; i++) {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const sx = rightX + col * (slotSize + gap);
+      const sy = rightY + 8 + row * (slotSize + gap);
+
+      const item = inv.slots[i];
+      const isSelected = inv.selectedSlotIndex === i;
+
+      ctx.fillStyle = isSelected ? '#263342' : '#161b22';
+      ctx.fillRect(sx, sy, slotSize, slotSize);
+
+      let borderColor = '#30363d';
+      if (item) {
+        if (item.rarity === 'legendary') borderColor = '#f0883e';
+        else if (item.rarity === 'epic') borderColor = '#bc8cff';
+        else if (item.rarity === 'rare') borderColor = '#58a6ff';
+        else borderColor = '#8b949e';
+      }
+      if (isSelected) borderColor = '#e3b341';
+
+      ctx.strokeStyle = borderColor;
+      ctx.lineWidth = isSelected ? 2 : 1;
+      ctx.strokeRect(sx, sy, slotSize, slotSize);
+
+      // Nomor urut slot
+      ctx.fillStyle = '#484f58';
+      ctx.font = '7px monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText(`${i + 1}`, sx + 2, sy + 7);
+
+      if (item) {
+        // Teks singkatan item
+        ctx.fillStyle = '#e6edf3';
+        ctx.font = 'bold 8px monospace';
+        ctx.textAlign = 'center';
+        const abbr = item.name.split(' ').map((w) => w[0]).join('').slice(0, 3).toUpperCase();
+        ctx.fillText(abbr, sx + slotSize / 2, sy + slotSize / 2 + 2);
+
+        // Kuantitas badge
+        if (item.quantity > 1) {
+          ctx.fillStyle = '#3fb950';
+          ctx.font = 'bold 8px monospace';
+          ctx.textAlign = 'right';
+          ctx.fillText(`x${item.quantity}`, sx + slotSize - 2, sy + slotSize - 2);
+        }
+      }
+    }
+
+    // Kotak Info Item Tooltip di Bagian Bawah
+    const tipY = my + mh - 58;
+    ctx.fillStyle = '#161b22';
+    ctx.fillRect(mx + 14, tipY, mw - 28, 48);
+    ctx.strokeStyle = '#30363d';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(mx + 14, tipY, mw - 28, 48);
+
+    const selIndex = inv.selectedSlotIndex ?? 0;
+    const selectedItem = inv.slots[selIndex];
+    ctx.textAlign = 'left';
+
+    if (selectedItem) {
+      let rColor = '#8b949e';
+      if (selectedItem.rarity === 'epic') rColor = '#bc8cff';
+      if (selectedItem.rarity === 'rare') rColor = '#58a6ff';
+      ctx.fillStyle = rColor;
+      ctx.font = 'bold 10px monospace';
+      ctx.fillText(`[Slot ${selIndex + 1}] ${selectedItem.name} (${selectedItem.type})`, mx + 20, tipY + 14);
+
+      ctx.fillStyle = '#8b949e';
+      ctx.font = '9px monospace';
+      ctx.fillText(selectedItem.description, mx + 20, tipY + 28);
+
+      let bonusText = '';
+      if (selectedItem.statBonus) {
+        const b = selectedItem.statBonus;
+        if (b.attack) bonusText += `+${b.attack} ATK `;
+        if (b.defense) bonusText += `+${b.defense} DEF `;
+        if (b.maxHp) bonusText += `+${b.maxHp} HP `;
+      }
+      if (selectedItem.healHp) bonusText += `Restores +${selectedItem.healHp} HP `;
+      if (selectedItem.healMp) bonusText += `Restores +${selectedItem.healMp} MP `;
+
+      ctx.fillStyle = '#3fb950';
+      ctx.fillText(`Effects: ${bonusText || 'None'} | Press [1-${inv.maxSlots}] to Equip/Use`, mx + 20, tipY + 42);
+    } else {
+      ctx.fillStyle = '#6e7681';
+      ctx.font = '9px monospace';
+      ctx.fillText(`[Slot ${selIndex + 1}] Empty Slot: Select another slot or press [I] to close.`, mx + 20, tipY + 26);
+    }
+
+    ctx.restore();
   }
 }
