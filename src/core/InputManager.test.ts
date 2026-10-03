@@ -80,4 +80,18 @@ describe('InputManager', () => {
     expect(input.isActionDown('right')).toBe(false);
     expect(input.isActionJustPressed('right')).toBe(false);
   });
+
+  it('harus mendukung setVirtualAction untuk touch controls virtual', () => {
+    input.setVirtualAction('attack', true);
+    expect(input.isActionDown('attack')).toBe(true);
+    expect(input.isActionJustPressed('attack')).toBe(true);
+
+    input.endFrame();
+    expect(input.isActionDown('attack')).toBe(true);
+    expect(input.isActionJustPressed('attack')).toBe(false);
+
+    input.setVirtualAction('attack', false);
+    expect(input.isActionDown('attack')).toBe(false);
+    expect(input.isActionJustReleased('attack')).toBe(true);
+  });
 });

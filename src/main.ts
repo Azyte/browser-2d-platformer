@@ -24,10 +24,11 @@ import { MMORenderSystem, MMOVisualComponent } from './rpg/MMORenderSystem';
 import { QuestManager } from './rpg/QuestSystem';
 import { LootSystem } from './rpg/LootSystem';
 import { SoundSynthesizer } from './audio/SoundSynthesizer';
+import { DebugRenderSystem } from './render/DebugRenderSystem';
 import type { Entity } from './ecs/Entity';
 
 // ============================================================================
-// 1. KONFIGURASI DUNIA & LAYOUT RESPONSIVE (NO OFFSIDE)
+// 1. KONFIGURASI DUNIA & LAYOUT RESPONSIVE (ANTI-OFFSIDE)
 // ============================================================================
 
 const WORLD_WIDTH = 2400;
@@ -51,13 +52,13 @@ app.innerHTML = `
             Simulated MMO World - Custom ECS, Depth Y-Sorting, Autonomous Bots & Quests (GDGoC Portfolio)
           </p>
         </div>
-        <div style="display: flex; gap: 8px; align-items: center;">
+        <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
           <span style="background: #238636; color: #ffffff; padding: 3px 8px; border-radius: 10px; font-size: 11px; font-weight: 600;">
-            🟢 Server Online
+            🟢 Online (CH 1)
           </span>
-          <span style="background: #1f6feb; color: #ffffff; padding: 3px 8px; border-radius: 10px; font-size: 11px; font-weight: 600;">
-            CH 1
-          </span>
+          <button id="btn-debug-toggle" style="background: #21262d; border: 1px solid #388bfd; color: #58a6ff; padding: 3px 8px; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: 600;">
+            ⚙️ Debug (F3): OFF
+          </button>
         </div>
       </div>
 
@@ -92,22 +93,60 @@ app.innerHTML = `
         <canvas id="game-canvas" width="${CANVAS_WIDTH}" height="${CANVAS_HEIGHT}" style="display: block; width: 100%; max-width: 800px; height: auto; aspect-ratio: 800 / 480; border: 1px solid #30363d; background: #0b130e; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); box-sizing: border-box;"></canvas>
       </div>
 
-      <!-- Quick Action & Emote Bar -->
-      <div style="display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; justify-content: space-between;">
-        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-          <button id="btn-chat-wave" style="background: #21262d; border: 1px solid #30363d; color: #e6edf3; padding: 5px 10px; border-radius: 6px; font-size: 11px; cursor: pointer;">
-            👋 Sapa Pemain
-          </button>
-          <button id="btn-chat-lfg" style="background: #21262d; border: 1px solid #30363d; color: #e6edf3; padding: 5px 10px; border-radius: 6px; font-size: 11px; cursor: pointer;">
-            ⚔️ LFG Boss Fenrir
-          </button>
-          <button id="btn-chat-heal" style="background: #21262d; border: 1px solid #30363d; color: #e6edf3; padding: 5px 10px; border-radius: 6px; font-size: 11px; cursor: pointer;">
-            🧪 Minta Heal
-          </button>
+      <!-- Mobile Touch Gamepad Controls -->
+      <div style="margin-top: 10px; display: flex; justify-content: space-between; align-items: center; background: #161b22; padding: 10px 14px; border-radius: 8px; border: 1px solid #30363d; flex-wrap: wrap; gap: 10px;">
+        <!-- Virtual D-Pad -->
+        <div style="display: inline-grid; grid-template-columns: repeat(3, 38px); grid-template-rows: repeat(3, 34px); gap: 4px; user-select: none;">
+          <div></div>
+          <button id="touch-up" style="background: #21262d; border: 1px solid #30363d; color: #c9d1d9; border-radius: 4px; font-weight: bold; cursor: pointer;">▲</button>
+          <div></div>
+          <button id="touch-left" style="background: #21262d; border: 1px solid #30363d; color: #c9d1d9; border-radius: 4px; font-weight: bold; cursor: pointer;">◄</button>
+          <div style="background: #0d1117; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #484f58;">PAD</div>
+          <button id="touch-right" style="background: #21262d; border: 1px solid #30363d; color: #c9d1d9; border-radius: 4px; font-weight: bold; cursor: pointer;">►</button>
+          <div></div>
+          <button id="touch-down" style="background: #21262d; border: 1px solid #30363d; color: #c9d1d9; border-radius: 4px; font-weight: bold; cursor: pointer;">▼</button>
+          <div></div>
         </div>
-        <div>
-          <button id="btn-audio-toggle" style="background: #1f6feb; border: none; color: #ffffff; padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer;">
-            🔊 Audio: ON
+
+        <!-- Quick Chat & Stress Test Buttons -->
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+            <button id="btn-chat-wave" style="background: #21262d; border: 1px solid #30363d; color: #e6edf3; padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer;">
+              👋 Sapa
+            </button>
+            <button id="btn-chat-lfg" style="background: #21262d; border: 1px solid #30363d; color: #e6edf3; padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer;">
+              ⚔️ LFG Fenrir
+            </button>
+            <button id="btn-chat-heal" style="background: #21262d; border: 1px solid #30363d; color: #e6edf3; padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer;">
+              🧪 Minta Heal
+            </button>
+          </div>
+          <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+            <button id="btn-stress-mobs" style="background: #238636; border: none; color: #ffffff; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; cursor: pointer;">
+              ⚡ +20 Slimes
+            </button>
+            <button id="btn-stress-bots" style="background: #6e40c9; border: none; color: #ffffff; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; cursor: pointer;">
+              🤖 +4 Bots
+            </button>
+            <button id="btn-audio-toggle" style="background: #1f6feb; border: none; color: #ffffff; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; cursor: pointer;">
+              🔊 Sound: ON
+            </button>
+          </div>
+        </div>
+
+        <!-- Virtual Action Buttons -->
+        <div style="display: flex; gap: 6px; user-select: none;">
+          <button id="touch-attack" style="width: 48px; height: 48px; background: #da3633; border: 1px solid #f85149; color: #ffffff; border-radius: 50%; font-size: 11px; font-weight: bold; cursor: pointer;">
+            ATK
+          </button>
+          <button id="touch-skill" style="width: 48px; height: 48px; background: #8957e5; border: 1px solid #bc8cff; color: #ffffff; border-radius: 50%; font-size: 10px; font-weight: bold; cursor: pointer;">
+            SKILL
+          </button>
+          <button id="touch-hp" style="width: 42px; height: 42px; background: #238636; border: 1px solid #3fb950; color: #ffffff; border-radius: 50%; font-size: 10px; font-weight: bold; cursor: pointer; align-self: center;">
+            HP
+          </button>
+          <button id="touch-mp" style="width: 42px; height: 42px; background: #1f6feb; border: 1px solid #58a6ff; color: #ffffff; border-radius: 50%; font-size: 10px; font-weight: bold; cursor: pointer; align-self: center;">
+            MP
           </button>
         </div>
       </div>
@@ -115,17 +154,19 @@ app.innerHTML = `
       <!-- Controls & Features Grid (Responsif Anti-Offside) -->
       <div style="margin-top: 12px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; width: 100%; box-sizing: border-box;">
         <div style="background: #161b22; padding: 12px 14px; border-radius: 6px; border: 1px solid #30363d; font-size: 12px; line-height: 1.6;">
-          <div style="font-weight: 600; color: #79c0ff; margin-bottom: 6px;">🎮 Controls & Combat Guide:</div>
+          <div style="font-weight: 600; color: #79c0ff; margin-bottom: 6px;">🎮 Keyboard & Gamepad:</div>
           <div><strong style="color: #e6edf3;">[W, A, S, D]</strong> or <strong style="color: #e6edf3;">[Panah]</strong>: Jalan 8 Arah (Normalisasi diagonal)</div>
           <div><strong style="color: #e6edf3;">[Space]</strong> or <strong style="color: #e6edf3;">[J]</strong>: Basic Attack Tebasan Pedang</div>
           <div><strong style="color: #e6edf3;">[K]</strong> or <strong style="color: #e6edf3;">[1]</strong>: Whirlwind Slash (20 MP, 75px Area, 2.2x Damage)</div>
           <div><strong style="color: #e6edf3;">[Q]</strong>: Minum HP Potion (+50 HP) | <strong style="color: #e6edf3;">[E]</strong>: MP Potion (+35 MP)</div>
+          <div><strong style="color: #e6edf3;">[F3]</strong>: Toggle Engine Debug Hitboxes & AI Radar</div>
         </div>
         <div style="background: #161b22; padding: 12px 14px; border-radius: 6px; border: 1px solid #30363d; font-size: 12px; color: #8b949e; line-height: 1.5;">
-          <div style="font-weight: 600; color: #e3b341; margin-bottom: 4px;">✨ Simulated MMO Features:</div>
-          <div>- Bot otonom (Valkyrie, ShadowBlade, Merlin, HealerKun) berburu dan chatting.</div>
-          <div>- Depth Y-Sorting: Karakter melangkah di depan/belakang pohon secara alami.</div>
-          <div>- Loot Drops & Quests: Monster menjatuhkan koin & ramuan saat dikalahkan.</div>
+          <div style="font-weight: 600; color: #e3b341; margin-bottom: 4px;">✨ Fitur Unggulan Engine:</div>
+          <div>- Bot pemain otonom berburu dan chatting secara dinamis.</div>
+          <div>- Depth Y-Sorting: Karakter melangkah di depan/belakang pohon.</div>
+          <div>- Stress Test: Klik tombol +20 Slimes untuk menguji performa 60 FPS.</div>
+          <div>- Web Audio Synthesizer: Suara retro prosedural tanpa file eksternal.</div>
         </div>
       </div>
     </div>
@@ -143,10 +184,23 @@ const upsEl = document.querySelector<HTMLSpanElement>('#ups-val')!;
 const playerLvlEl = document.querySelector<HTMLDivElement>('#player-lvl')!;
 const playerGoldEl = document.querySelector<HTMLDivElement>('#player-gold')!;
 const entitiesEl = document.querySelector<HTMLDivElement>('#entities-val')!;
+const btnDebugToggle = document.querySelector<HTMLButtonElement>('#btn-debug-toggle')!;
 const btnAudioToggle = document.querySelector<HTMLButtonElement>('#btn-audio-toggle')!;
+const btnStressMobs = document.querySelector<HTMLButtonElement>('#btn-stress-mobs')!;
+const btnStressBots = document.querySelector<HTMLButtonElement>('#btn-stress-bots')!;
 const btnChatWave = document.querySelector<HTMLButtonElement>('#btn-chat-wave')!;
 const btnChatLfg = document.querySelector<HTMLButtonElement>('#btn-chat-lfg')!;
 const btnChatHeal = document.querySelector<HTMLButtonElement>('#btn-chat-heal')!;
+
+// Touch pad buttons
+const touchUp = document.querySelector<HTMLButtonElement>('#touch-up')!;
+const touchDown = document.querySelector<HTMLButtonElement>('#touch-down')!;
+const touchLeft = document.querySelector<HTMLButtonElement>('#touch-left')!;
+const touchRight = document.querySelector<HTMLButtonElement>('#touch-right')!;
+const touchAttack = document.querySelector<HTMLButtonElement>('#touch-attack')!;
+const touchSkill = document.querySelector<HTMLButtonElement>('#touch-skill')!;
+const touchHp = document.querySelector<HTMLButtonElement>('#touch-hp')!;
+const touchMp = document.querySelector<HTMLButtonElement>('#touch-mp')!;
 
 // ============================================================================
 // 2. INISIALISASI ENGINE & MANAGERS
@@ -157,6 +211,7 @@ const chatManager = new ChatManager();
 const questManager = new QuestManager();
 const lootSystem = new LootSystem();
 const soundSynth = new SoundSynthesizer({ enabled: true, volume: 0.3 });
+const debugSystem = new DebugRenderSystem();
 const world = new World();
 
 const camera = new Camera2D({
@@ -184,15 +239,31 @@ const mmoRenderSystem = new MMORenderSystem(
   questManager
 );
 
-// Event listener Audio Toggle
+// Toggle Debug Overlay
+function toggleDebug(): void {
+  const isDebug = debugSystem.toggle();
+  btnDebugToggle.textContent = isDebug ? '⚙️ Debug (F3): ON' : '⚙️ Debug (F3): OFF';
+  btnDebugToggle.style.background = isDebug ? '#1f6feb' : '#21262d';
+  btnDebugToggle.style.color = isDebug ? '#ffffff' : '#58a6ff';
+}
+
+btnDebugToggle.addEventListener('click', toggleDebug);
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'F3') {
+    e.preventDefault();
+    toggleDebug();
+  }
+});
+
+// Audio Toggle
 btnAudioToggle.addEventListener('click', () => {
   soundSynth.initContext();
   const isMuted = soundSynth.toggleMute();
-  btnAudioToggle.textContent = isMuted ? '🔇 Audio: OFF' : '🔊 Audio: ON';
+  btnAudioToggle.textContent = isMuted ? '🔇 Sound: OFF' : '🔊 Sound: ON';
   btnAudioToggle.style.background = isMuted ? '#6e7681' : '#1f6feb';
 });
 
-// Event listener Quick Emotes
+// Quick Emotes
 btnChatWave.addEventListener('click', () => {
   soundSynth.initContext();
   chatManager.addMessage('Hero (You)', 'Greetings, fellow adventurers!', 'player');
@@ -217,6 +288,33 @@ btnChatHeal.addEventListener('click', () => {
   }, 900);
 });
 
+// Virtual Touch Pad Handlers (Mendukung sentuhan mobile & klik mouse)
+function bindTouchButton(el: HTMLElement, action: 'up' | 'down' | 'left' | 'right' | 'attack' | 'skill' | 'potionHp' | 'potionMp') {
+  const down = (e: Event) => {
+    e.preventDefault();
+    soundSynth.initContext();
+    input.setVirtualAction(action, true);
+  };
+  const up = (e: Event) => {
+    e.preventDefault();
+    input.setVirtualAction(action, false);
+  };
+
+  el.addEventListener('pointerdown', down);
+  el.addEventListener('pointerup', up);
+  el.addEventListener('pointerleave', up);
+  el.addEventListener('pointercancel', up);
+}
+
+bindTouchButton(touchUp, 'up');
+bindTouchButton(touchDown, 'down');
+bindTouchButton(touchLeft, 'left');
+bindTouchButton(touchRight, 'right');
+bindTouchButton(touchAttack, 'attack');
+bindTouchButton(touchSkill, 'skill');
+bindTouchButton(touchHp, 'potionHp');
+bindTouchButton(touchMp, 'potionMp');
+
 // Pesan sambutan
 chatManager.addMessage('System', 'Welcome to Emerald Sanctuary! Simulated MMO World initialized.', 'system');
 chatManager.addMessage('System', 'Defeat monsters to complete Quests and earn EXP & Loot!', 'system');
@@ -238,7 +336,6 @@ const deadMonsters: RespawnRecord[] = [];
 function createTree(x: number, y: number): Entity {
   const tree = world.createEntity();
   world.addComponent(tree, new TransformComponent(x, y));
-  // Collider diletakkan di pangkal batang agar karakter bisa berjalan di balik kanopi daun
   world.addComponent(tree, new ColliderComponent(28, 22, 18, 52, true));
   world.addComponent(tree, new SolidObstacleComponent());
   world.addComponent(
@@ -260,7 +357,6 @@ function createRock(x: number, y: number): Entity {
   return rock;
 }
 
-// Batas perimeter pohon mengelilingi dunia game
 for (let x = 0; x < WORLD_WIDTH; x += 64) {
   createTree(x, 0);
   createTree(x, WORLD_HEIGHT - 88);
@@ -270,7 +366,6 @@ for (let y = 60; y < WORLD_HEIGHT - 88; y += 70) {
   createTree(WORLD_WIDTH - 64, y);
 }
 
-// Gugusan pohon dan bebatuan alami
 createTree(250, 160);
 createTree(320, 180);
 createTree(220, 240);
@@ -338,7 +433,7 @@ world.addComponent(
 camera.follow(400, 350, true);
 
 // ============================================================================
-// 5. SPAWN BOT PEMAIN (VALKYRIE, SHADOWBLADE, MERLIN, HEALERKUN)
+// 5. SPAWN BOT PEMAIN
 // ============================================================================
 
 function createBotPlayer(
@@ -489,6 +584,26 @@ createMonster(1700, 290, 'Dire Wolf Alpha', 5, 'wolf', '#545d68');
 // World Boss: Alpha Wolf Fenrir
 createMonster(1950, 680, 'Alpha Wolf Fenrir', 7, 'boss', '#3d1f5e', 54, 54);
 
+// Stress Test Buttons
+btnStressMobs.addEventListener('click', () => {
+  for (let i = 0; i < 20; i++) {
+    const rx = 500 + Math.random() * 1200;
+    const ry = 250 + Math.random() * 1000;
+    createMonster(rx, ry, 'Wild Slime', 1, 'slime', '#3fb950');
+  }
+  chatManager.addMessage('System', 'Stress Test: Spawned +20 Wild Slimes!', 'system');
+});
+
+btnStressBots.addEventListener('click', () => {
+  const botNames = ['Lancelot', 'Gawain', 'Ygritte', 'Ezio'];
+  for (let i = 0; i < botNames.length; i++) {
+    const rx = 350 + Math.random() * 200;
+    const ry = 300 + Math.random() * 150;
+    createBotPlayer(rx, ry, botNames[i], 'Adventurer', 2, '#388bfd', '#1f242c');
+  }
+  chatManager.addMessage('System', 'Stress Test: Spawned +4 Simulated Bots!', 'system');
+});
+
 // ============================================================================
 // 7. GAME LOOP & INTERAKSI
 // ============================================================================
@@ -525,7 +640,7 @@ const loop = new GameLoop({
     const playerStats = world.getComponent(player, StatsComponent);
     const playerCombat = world.getComponent(player, CombatComponent);
 
-    // 1. Kontrol Pergerakan Pemain (WASD / Arrows)
+    // 1. Kontrol Pergerakan Pemain (WASD / Arrows / Touch D-pad)
     if (playerTrans && playerVel && playerStats && playerStats.hp > 0) {
       let dx = 0;
       let dy = 0;
@@ -545,7 +660,7 @@ const loop = new GameLoop({
         playerVel.vy = 0;
       }
 
-      // 2. Aksi Tempur: Basic Attack (Space / J)
+      // 2. Aksi Tempur: Basic Attack (Space / J / Touch ATK)
       if (input.isActionJustPressed('attack') && playerCombat) {
         playerCombat.isAttacking = true;
         soundSynth.playAttack();
@@ -557,7 +672,7 @@ const loop = new GameLoop({
         }
       }
 
-      // 3. Aksi Tempur: Whirlwind Slash (K / 1)
+      // 3. Aksi Tempur: Whirlwind Slash (K / 1 / Touch SKILL)
       if (input.isActionJustPressed('skill') && playerCombat) {
         const target = findNearestMonster(playerTrans.x + 16, playerTrans.y + 16, playerCombat.skillRange);
         if (target) {
@@ -578,7 +693,7 @@ const loop = new GameLoop({
         }
       }
 
-      // 4. Minum Potion (Q = HP, E = MP)
+      // 4. Minum Potion (Q = HP, E = MP, Touch HP/MP)
       if (input.isActionJustPressed('potionHp')) {
         if (combatSystem.useHpPotion(playerStats)) {
           soundSynth.playPotion();
@@ -615,12 +730,10 @@ const loop = new GameLoop({
       const mAi = world.getComponent(m, MonsterAIComponent);
 
       if (mStats && mTrans && mStats.hp <= 0 && mAi) {
-        // Drop Loot di tanah
         const lootX = mTrans.x;
         const lootY = mTrans.y;
 
         if (mStats.level >= 7) {
-          // World Boss Drop
           lootSystem.spawnLoot(world, lootX, lootY, {
             itemName: 'Fenrir Crest',
             itemType: 'equipment',
@@ -633,7 +746,6 @@ const loop = new GameLoop({
             value: 200,
           });
         } else {
-          // Regular mob drop: Gold pouch atau potion
           if (Math.random() < 0.6) {
             lootSystem.spawnLoot(world, lootX, lootY, {
               itemName: 'Gold Pouch',
@@ -649,12 +761,10 @@ const loop = new GameLoop({
           }
         }
 
-        // Cek progres quest
         if (mPlate) {
           questManager.onMonsterKilled(mPlate.name, world, player, combatSystem, chatManager, soundSynth);
         }
 
-        // Catat jadwal respawn setelah 5 detik
         deadMonsters.push({
           entity: m,
           respawnTimer: 5.0,
@@ -663,7 +773,6 @@ const loop = new GameLoop({
           maxHp: mStats.maxHp,
         });
 
-        // Sembunyikan monster sementara
         mTrans.x = -9999;
         mTrans.y = -9999;
         mTrans.prevX = -9999;
@@ -705,8 +814,13 @@ const loop = new GameLoop({
   },
 
   render: (alpha: number) => {
+    // 1. Render gameplay MMORPG
     mmoRenderSystem.render(world, alpha, player);
 
+    // 2. Render Debug Overlay jika aktif (F3)
+    debugSystem.render(world, ctx, camera, alpha);
+
+    // 3. Update metrik ke dashboard HTML
     fpsEl.textContent = loop.fps.toString();
     upsEl.textContent = loop.ups.toString();
     entitiesEl.textContent = mmoRenderSystem.visibleEntitiesCount.toString();

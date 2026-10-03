@@ -153,6 +153,27 @@ export class InputManager {
   }
 
   /**
+   * Mengatur state aksi secara programmatic (misal dari D-pad sentuh virtual / tombol sentuh mobile).
+   */
+  public setVirtualAction(action: InputAction, isDown: boolean): void {
+    const keys = this.bindings[action];
+    if (!keys || keys.length === 0) return;
+    const primaryKey = keys[0];
+
+    if (isDown) {
+      if (!this.activeKeys.has(primaryKey)) {
+        this.justPressedKeys.add(primaryKey);
+      }
+      this.activeKeys.add(primaryKey);
+    } else {
+      if (this.activeKeys.has(primaryKey)) {
+        this.activeKeys.delete(primaryKey);
+        this.justReleasedKeys.add(primaryKey);
+      }
+    }
+  }
+
+  /**
    * Memeriksa apakah suatu aksi sedang ditahan (held down).
    * @param action Nama aksi gameplay (misal: 'left', 'jump')
    */
