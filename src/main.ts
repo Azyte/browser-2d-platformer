@@ -11,9 +11,11 @@ import {
   SolidObstacleComponent,
 } from './physics/PhysicsComponents';
 import { PhysicsSystem } from './physics/PhysicsSystem';
+import { PlatformerControllerComponent } from './physics/PlatformerControllerComponent';
+import { PlatformerControllerSystem } from './physics/PlatformerControllerSystem';
 
 // ==========================================
-// 1. KOMPONEN DATA & TAGS
+// 1. KOMPONEN VISUAL
 // ==========================================
 
 export class RenderableComponent {
@@ -25,53 +27,9 @@ export class RenderableComponent {
   ) {}
 }
 
-export class PlayerControlledComponent {
-  constructor(
-    public moveSpeed: number = 220,
-    public jumpForce: number = 480
-  ) {}
-}
-
 // ==========================================
-// 2. SISTEM LOGIKA, KAMERA & RENDER
+// 2. SISTEM KAMERA & RENDER
 // ==========================================
-
-/**
- * PlayerInputSystem membaca state keyboard dan mengendalikan lari dan lompat.
- */
-export class PlayerInputSystem implements System {
-  constructor(private readonly input: InputManager) {}
-
-  public update(world: World): void {
-    const players = world.query(
-      TransformComponent,
-      VelocityComponent,
-      RigidBodyComponent,
-      PlayerControlledComponent
-    );
-
-    for (const entity of players) {
-      const velocity = world.getComponent(entity, VelocityComponent);
-      const body = world.getComponent(entity, RigidBodyComponent);
-      const control = world.getComponent(entity, PlayerControlledComponent);
-
-      if (!velocity || !body || !control) continue;
-
-      // Gerak horizontal
-      let moveX = 0;
-      if (this.input.isActionDown('left')) moveX -= 1;
-      if (this.input.isActionDown('right')) moveX += 1;
-
-      velocity.vx = moveX * control.moveSpeed;
-
-      // Lompat: hanya bisa jika karakter sedang menapak di tanah (isGrounded)
-      if (body.isGrounded && this.input.isActionJustPressed('jump')) {
-        velocity.vy = -control.jumpForce;
-        body.isGrounded = false;
-      }
-    }
-  }
-}
 
 /**
  * CameraFollowSystem menggerakkan kamera untuk mengikuti posisi entitas pemain secara halus (lerp).
@@ -80,7 +38,7 @@ export class CameraFollowSystem implements System {
   constructor(private readonly camera: Camera2D) {}
 
   public update(world: World): void {
-    const players = world.query(TransformComponent, PlayerControlledComponent);
+    const players = world.query(TransformComponent, PlatformerControllerComponent);
     if (players.length === 0) return;
 
     const transform = world.getComponent(players[0], TransformComponent);
@@ -156,12 +114,10 @@ export class RenderSystem implements System {
 
       this.visibleEntitiesCount++;
 
-      // Gambar rintangan solid atau karakter
       ctx.fillStyle = renderable.color;
       ctx.fillRect(renderX, renderY, renderable.width, renderable.height);
 
       if (isSolid) {
-        // Outline rintangan solid
         ctx.strokeStyle = '#388bfd';
         ctx.lineWidth = 1.5;
         ctx.strokeRect(renderX, renderY, renderable.width, renderable.height);
@@ -192,7 +148,7 @@ if (!app) throw new Error('Elemen #app tidak ditemukan');
 
 app.innerHTML = `
   <div style="font-family: monospace; padding: 20px; background: #0d0f12; color: #e6edf3; min-height: 100vh; box-sizing: border-box;">
-    <h1 style="margin: 0 0 6px 0; color: #58a6ff; font-size: 20px;">Browser 2D Platformer Engine (PhysicsSystem + AABB Collisions)</h1>
+    <h1 style="margin: 0 0 6px 0; color: #58a6ff; font-size: 20px;">Browser 2D Platformer Engine (Kinematic Controller & Game Feel)</h1>
     <p style="color: #8b949e; margin: 0 0 14px 0;">Portfolio GDGoC Universitas Gunadarma: Custom Architecture</p>
 
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 12px;">
@@ -205,18 +161,24 @@ app.innerHTML = `
         <div id="grounded-val" style="font-size: 18px; font-weight: bold; color: #f0883e;">NO</div>
       </div>
       <div style="background: #161b22; padding: 10px 14px; border-radius: 6px; border: 1px solid #30363d;">
-        <span style="color: #8b949e; font-size: 11px;">Player Velocity</span>
-        <div id="velocity-val" style="font-size: 14px; font-weight: bold; color: #bc8cff; margin-top: 4px;">VX: 0 | VY: 0</div>
+        <span style="color: #8b949e; font-size: 11px;">Coyote Time</span>
+        <div id="coyote-val" style="font-size: 16px; font-weight: bold; color: #79c0ff;">0.00s</div>
       </div>
       <div style="background: #161b22; padding: 10px 14px; border-radius: 6px; border: 1px solid #30363d;">
-        <span style="color: #8b949e; font-size: 11px;">Camera Pos</span>
-        <div id="cam-val" style="font-size: 16px; font-weight: bold; color: #79c0ff;">0, 0</div>
+        <span style="color: #8b949e; font-size: 11px;">Jump Buffer</span>
+        <div id="buffer-val" style="font-size: 16px; font-weight: bold; color: #bc8cff;">0.00s</div>
+      </div>
+      <div style="background: #161b22; padding: 10px 14px; border-radius: 6px; border: 1px solid #30363d;">
+        <span style="color: #8b949e; font-size: 11px;">Velocity (VX | VY)</span>
+        <div id="velocity-val" style="font-size: 13px; font-weight: bold; color: #e6edf3; margin-top: 4px;">0 | 0</div>
       </div>
     </div>
 
     <div style="background: #161b22; padding: 10px 14px; border-radius: 6px; border: 1px solid #30363d; margin-bottom: 12px; font-size: 12px;">
-      Kontrol: <strong style="color: #79c0ff;">A / D</strong> atau <strong style="color: #79c0ff;">Panah Kiri/Kanan</strong> untuk Lari, <strong style="color: #3fb950;">Spasi / W / Panah Atas</strong> untuk Melompat.
-      Gravitasi, resolusi tabrakan lantai, platform mengambang, dan dinding dikelola oleh <strong>PhysicsSystem</strong>.
+      Fitur Game Feel Aktif:
+      <strong style="color: #79c0ff;">Coyote Time (120ms)</strong> (bisa lompat setelah keluar tebing),
+      <strong style="color: #bc8cff;">Jump Buffer (120ms)</strong> (antre lompat sebelum mendarat), dan
+      <strong style="color: #3fb950;">Variable Jump</strong> (tekan sebentar = lompat pendek, tahan = lompat tinggi).
     </div>
 
     <canvas id="game-canvas" width="${CANVAS_WIDTH}" height="${CANVAS_HEIGHT}" style="display: block; border: 1px solid #30363d; background: #040810; border-radius: 6px;"></canvas>
@@ -232,8 +194,9 @@ if (!ctx) throw new Error('Canvas 2D context not supported');
 const fpsEl = document.querySelector<HTMLSpanElement>('#fps-val')!;
 const upsEl = document.querySelector<HTMLSpanElement>('#ups-val')!;
 const groundedEl = document.querySelector<HTMLDivElement>('#grounded-val')!;
+const coyoteEl = document.querySelector<HTMLDivElement>('#coyote-val')!;
+const bufferEl = document.querySelector<HTMLDivElement>('#buffer-val')!;
 const velocityEl = document.querySelector<HTMLDivElement>('#velocity-val')!;
-const camEl = document.querySelector<HTMLDivElement>('#cam-val')!;
 
 // Inisialisasi InputManager
 const input = new InputManager();
@@ -250,9 +213,9 @@ const camera = new Camera2D({
 // Inisialisasi ECS World
 const world = new World();
 
-// Daftarkan Sistem dengan urutan baku: Input -> Physics -> Camera -> Render
+// Daftarkan Sistem: Input -> Controller -> Physics -> Camera -> Render
 const renderSystem = new RenderSystem(ctx, camera, WORLD_WIDTH, WORLD_HEIGHT);
-world.addSystem(new PlayerInputSystem(input));
+world.addSystem(new PlatformerControllerSystem(input));
 world.addSystem(new PhysicsSystem({ gravity: 980 }));
 world.addSystem(new CameraFollowSystem(camera));
 world.addSystem(renderSystem);
@@ -270,10 +233,7 @@ function createPlatform(x: number, y: number, w: number, h: number, label: strin
   return entity;
 }
 
-// 1. Lantai dasar utama (Ground) membentang di bawah
 createPlatform(0, 290, WORLD_WIDTH, 110, 'GROUND');
-
-// 2. Platform bertingkat untuk arena melompat
 createPlatform(200, 230, 140, 20, 'Platform 1');
 createPlatform(420, 180, 140, 20, 'Platform 2');
 createPlatform(640, 130, 160, 20, 'Platform 3');
@@ -282,7 +242,6 @@ createPlatform(1200, 230, 140, 20, 'Step');
 createPlatform(1450, 160, 180, 20, 'High Ledge');
 createPlatform(1750, 220, 220, 20, 'Final Bridge');
 
-// 3. Dinding vertikal untuk menguji tabrakan horizontal
 createPlatform(360, 200, 24, 90, 'WALL');
 createPlatform(820, 100, 24, 190, 'TOWER');
 createPlatform(1380, 120, 24, 170, 'PILLAR');
@@ -300,7 +259,16 @@ world.addComponent(
   new RigidBodyComponent({ mass: 1, useGravity: true, terminalVelocity: 850 })
 );
 world.addComponent(player, new RenderableComponent(28, 36, '#3fb950', 'HERO'));
-world.addComponent(player, new PlayerControlledComponent(220, 490));
+world.addComponent(
+  player,
+  new PlatformerControllerComponent({
+    moveSpeed: 230,
+    jumpForce: 520,
+    coyoteDuration: 0.12,
+    jumpBufferDuration: 0.12,
+    jumpCutMultiplier: 0.5,
+  })
+);
 
 // Inisialisasi GameLoop
 const loop = new GameLoop({
@@ -314,18 +282,26 @@ const loop = new GameLoop({
     // Update metrik ke HUD
     fpsEl.textContent = loop.fps.toString();
     upsEl.textContent = loop.ups.toString();
-    camEl.textContent = `${Math.round(camera.x)}, ${Math.round(camera.y)}`;
 
     const body = world.getComponent(player, RigidBodyComponent);
     const vel = world.getComponent(player, VelocityComponent);
+    const ctrl = world.getComponent(player, PlatformerControllerComponent);
 
     if (body) {
       groundedEl.textContent = body.isGrounded ? 'YES (On Floor)' : 'NO (In Air)';
       groundedEl.style.color = body.isGrounded ? '#3fb950' : '#f0883e';
     }
 
+    if (ctrl) {
+      coyoteEl.textContent = `${ctrl.coyoteTimer.toFixed(2)}s`;
+      coyoteEl.style.color = ctrl.coyoteTimer > 0 ? '#3fb950' : '#8b949e';
+
+      bufferEl.textContent = `${ctrl.jumpBufferTimer.toFixed(2)}s`;
+      bufferEl.style.color = ctrl.jumpBufferTimer > 0 ? '#bc8cff' : '#8b949e';
+    }
+
     if (vel) {
-      velocityEl.textContent = `VX: ${Math.round(vel.vx)} | VY: ${Math.round(vel.vy)}`;
+      velocityEl.textContent = `${Math.round(vel.vx)} | ${Math.round(vel.vy)}`;
     }
   },
 });
