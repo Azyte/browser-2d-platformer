@@ -4,7 +4,6 @@ import { TransformComponent } from '../physics/TransformComponent';
 import {
   StatsComponent,
   CombatComponent,
-  FloatingTextComponent,
 } from './RPGComponents';
 import { CombatSystem } from './CombatSystem';
 

@@ -1,7 +1,16 @@
 /**
  * Action yang dipetakan dari tombol keyboard fisik ke aksi gameplay logis.
  */
-export type InputAction = 'left' | 'right' | 'up' | 'down' | 'jump';
+export type InputAction =
+  | 'left'
+  | 'right'
+  | 'up'
+  | 'down'
+  | 'jump'
+  | 'attack'
+  | 'skill'
+  | 'potionHp'
+  | 'potionMp';
 
 export interface InputManagerOptions {
   /** Elemen target penangkap event keyboard (default: window). */
@@ -18,6 +27,10 @@ const DEFAULT_BINDINGS: Record<InputAction, string[]> = {
   up: ['KeyW', 'ArrowUp'],
   down: ['KeyS', 'ArrowDown'],
   jump: ['Space', 'KeyW', 'ArrowUp'],
+  attack: ['Space', 'KeyJ'],
+  skill: ['KeyK', 'Digit1', 'Numpad1'],
+  potionHp: ['KeyQ'],
+  potionMp: ['KeyE'],
 };
 
 /**
@@ -54,6 +67,10 @@ export class InputManager {
       up: options?.actionBindings?.up ?? DEFAULT_BINDINGS.up,
       down: options?.actionBindings?.down ?? DEFAULT_BINDINGS.down,
       jump: options?.actionBindings?.jump ?? DEFAULT_BINDINGS.jump,
+      attack: options?.actionBindings?.attack ?? DEFAULT_BINDINGS.attack,
+      skill: options?.actionBindings?.skill ?? DEFAULT_BINDINGS.skill,
+      potionHp: options?.actionBindings?.potionHp ?? DEFAULT_BINDINGS.potionHp,
+      potionMp: options?.actionBindings?.potionMp ?? DEFAULT_BINDINGS.potionMp,
     };
 
     this.handleKeyDown = (event: KeyboardEvent): void => {

@@ -1,3 +1,4 @@
+import type { Entity } from '../ecs/Entity';
 import type { World } from '../ecs/World';
 import type { System } from '../ecs/System';
 import { TransformComponent } from '../physics/TransformComponent';
