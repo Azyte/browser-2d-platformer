@@ -1,140 +1,417 @@
-# Aethelgard 2D: Top-Down MMORPG Engine (Custom TypeScript Engine)
+# Aethelgard 2D: Custom Top-Down MMORPG Engine
 
-> Custom 2D MMORPG Engine yang dibangun dari nol (*from scratch*) menggunakan **TypeScript** dan **HTML5 Canvas 2D API** tanpa library game pihak ketiga (tanpa Phaser, tanpa Pixi, tanpa Unity).
-> Dibuat sebagai portofolio seleksi **Google Developer Group on Campus (GDGoC) Universitas Gunadarma (Jalur Hacker)**.
+[![TypeScript Strict](https://img.shields.io/badge/TypeScript-5.x_Strict-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![HTML5 Canvas 2D](https://img.shields.io/badge/Canvas_2D-Native_HTML5-E34F26?logo=html5&logoColor=white)](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D)
+[![Web Audio API](https://img.shields.io/badge/Audio-Procedural_Web_Audio_API-8A2BE2)](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API)
+[![Vitest](https://img.shields.io/badge/Vitest-20_Suites_|_92_Tests_Passing-6E9F18?logo=vitest&logoColor=white)](https://vitest.dev/)
+[![Engine Loop](https://img.shields.io/badge/GameLoop-60Hz_Fixed_Timestep-00C853)](src/core/GameLoop.ts)
+[![Architecture](https://img.shields.io/badge/Architecture-Data--Oriented_ECS-blue)](src/ecs/World.ts)
+[![Zero Dependencies](https://img.shields.io/badge/Dependencies-0_External_Game_Engines-success)](#-tech-stack--arsitektur)
+[![Live Demo](https://img.shields.io/badge/GitHub_Pages-Live_Demo-black?logo=github&logoColor=white)](https://azyte.github.io/browser-2d-platformer/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-🎮 **Live Demo GitHub Pages**: [https://azyte.github.io/browser-2d-platformer/](https://azyte.github.io/browser-2d-platformer/)  
-📦 **Unit Test Suite**: 20 Test Suites, **92 Unit Tests 100% Passing**
+> Custom 2D MMORPG Engine yang dibangun dari nol (*from scratch*) berbasis **TypeScript** murni dan **HTML5 Canvas 2D Context API** tanpa bantuan game framework pihak ketiga (tanpa Phaser, tanpa PixiJS, tanpa Babylon, dan tanpa Unity).
+> 
+> Dikembangkan sebagai proyek portofolio teknis untuk seleksi **Google Developer Group on Campus (GDGoC) Universitas Gunadarma (Jalur Hacker)**.
 
----
-
-## 🌟 Arsitektur & Keunggulan Rekayasa Engine
-
-### 1. Fixed Timestep GameLoop (Accumulator Pattern)
-- Memisahkan tick logika/fisika (**60 Hz deterministik**) dari refresh rate layar monitor (60Hz, 120Hz, 144Hz).
-- **Render Interpolation Alpha** (`alpha = accumulator / dt`): Menghasilkan interpolasi koordinat visual super halus (*silky smooth*) tanpa stutter.
-- **Spiral of Death Clamp**: Mencegah browser freeze atau crash saat tab browser diminimize atau dibuka kembali dengan pembatasan `maxFrameTime`.
-
-### 2. Type-Safe Data-Oriented ECS (Entity-Component-System)
-- Menggantikan hierarki pewarisan OOP yang kaku dengan arsitektur data murni berkinerja tinggi:
-  - **Entity**: Integer ID unik.
-  - **Component**: Pure data container tanpa dependensi logika (*Transform, Velocity, Collider, Stats, Combat, Nameplate, MonsterAI, SimulatedPlayer, LootDrop, NPCComponent, InventoryComponent*).
-  - **System**: Fungsi pengolah yang memproses entitas berdasarkan query komponen secara batch.
-- Query didesain dengan memilih store komponen terkecil terlebih dahulu untuk efisiensi CPU cache.
-- Mekanisme `queueDestroy` untuk mencegah mutasi array saat query iterasi sedang berjalan di hot loop.
-
-### 3. Top-Down Movement & Sliding Collision Resolution
-- **Diagonal Speed Normalization**: Mengeliminasi bug pergerakan miring (W+D) yang biasanya 41% lebih cepat (`sqrt(1^2 + 1^2) = 1.414`) dengan normalisasi vektor arah ke panjang 1.0.
-- **Axis-Separated Sliding Collision**: Resolusi tabrakan terhadap rintangan lingkungan padat (pohon, batu granit, batas peta) diselesaikan secara independen pada sumbu X lalu Y. Karakter dapat meluncur mulus (*smooth sliding*) di sepanjang rintangan tanpa tersangkut.
-
-### 4. Depth Y-Sorting (Z-Ordering 2.5D Perspective)
-- Objek, NPC, dan karakter diurutkan secara dinamis berdasarkan posisi alas kaki (`baseY = y + height`).
-- Karakter dapat melangkah di balik kanopi daun pohon atau di belakang NPC saat berada di atas posisinya, dan tampil di depan saat berjalan di bawahnya, menciptakan ilusi perspektif kedalaman nyata.
-
-### 5. Sistem Tempur RPG & Progresi Level
-- Formula kalkulasi kerusakan fisik: `BaseDamage = max(1, Atk - TargetDef) * (isCrit ? CritMultiplier : 1.0)`.
-- Jurus aktif **Whirlwind Slash** (damage area 2.2x multiplier, radius 75px, konsumsi 20 MP).
-- Ramuan pemulih HP (+50 HP) dan MP (+35 MP) dengan konsumsi instan.
-- **Level Up Otomatis**: Saat EXP mencapai batas target, level karakter naik, status tempur (HP Max, MP Max, Atk, Def) meningkat permanen, dan darah/mana pulih penuh.
-
-### 6. Monster AI Finite State Machine & Anti-Kiting Leash
-- State machine musuh: *Idle*, *Patrol* (berkeliling di sekitar sarang), *Chase* (mengejar target saat masuk radius aggro), *Attack*, dan *Return*.
-- **Anti-Kiting Leash Mechanism**: Mencegah eksploitasi kiting tanpa batas. Jika monster terpancing menjauhi sarang melebihi `leashRadius`, monster membatalkan target, kebal sementara, dan berlari kembali ke sarang sambil meregenerasi darah penuh.
-- **Respawn Queue**: Monster yang tewas dijadwalkan hidup kembali di koordinat sarangnya setelah 5 detik.
-
-### 7. Simulated Online MMO World (Autonomous Player Bots)
-- 4 bot pemain otonom yang mensimulasikan lingkungan MMORPG daring tanpa membutuhkan server backend:
-  - **Valkyrie** (Swordmaster: Zirah baja kirmisi, jubah biru langit, helm bersayap, pedang Zweihander).
-  - **ShadowBlade** (Shadow Rogue: Jubah ninja obsidian, selendang ungu berkibar, belati ganda beracun).
-  - **Merlin** (Archmage: Jubah biru bertabur bintang, topi kerucut penyihir, tongkat kristal bercahaya).
-  - **HealerKun** (High Cleric: Jubah liturgis putih-emas, lingkaran halo suci di atas kepala, gada matahari).
-- Bot secara mandiri mencari monster, bertarung, meminum potion jika darah sekarat (<30%), dan mengobrol secara dinamis di log percakapan global.
-
-### 8. Interactive NPC & Branching Dialogue System
-- **Tetua Rowan (Town Elder & Sage)**: NPC penjaga pusat Sanctuary dengan visual jubah zamrud, jenggot putih, tongkat kayu ek, dan floating golden quest marker (`!`).
-- **Proximity Prompt**: Mendeteksi jarak pemain dan menampilkan pill badge interaktif `[F] Talk to Elder Rowan`.
-- **Branching Dialogue Tree**: Dialog interaktif bercabang dengan pilihan numerik (1, 2, 3 atau klik mouse) untuk mendengarkan lore dunia, meminta Berkah Pemulihan Darah (Blessing of Sanctuary), dan pamit bertualang.
-
-### 9. Visual Inventory & Equipment Paperdoll Modal
-- **Equipment Slots**: Slot perlengkapan dinamis (Weapon, Armor, Accessory) yang langsung merefleksikan bonus serangan, pertahanan, dan darah maksimal ke status karakter.
-- **Bag Grid (16 Slots)**: Manajemen tas dengan penumpukan item otomatis (*item stacking*), pembagian kategori (Senjata, Zirah, Aksesori, Konsumsi, Material), dan badge kuantitas.
-- **Interactive Modal**: Tampilan modal RPG transparan yang dapat dibuka/tutup dengan tombol `[I]`, `[B]`, atau tombol sentuh `[BAG]`, lengkap dengan tooltip deskripsi dan aksi pasang/pakai langsung.
-
-### 10. Day/Night Dynamic Cycle & Radial Lighting
-- **Siklus Waktu 24 Jam**: Bergulir mulus melewati 4 fase (Fajar, Siang Cerah, Senja Lembayung, Malam Pekat).
-- **Radial Lighting Mask**: Menggunakan teknik `destination-out` dan gradien radial dinamis pada HTML5 Canvas untuk memotong kegelapan malam di sekitar sumber cahaya (obor pemain, lentera bot, api unggun perkemahan, dan aura ungu Fenrir).
-
-### 11. Procedural Web Audio SFX Synthesizer (Zero Asset Audio)
-- Menghasilkan efek suara retro/arcade 16-bit secara langsung dari kode melalui Web Audio API tanpa perlu mengunduh file `.mp3` atau `.wav`:
-  - Tebasan pedang (*Sawtooth pitch slide*)
-  - Benturan pukulan & Critical Hit (*Metallic chime + punchy bass*)
-  - Pusaran jurus Whirlwind (*Sweeping pitch vortex*)
-  - Ramuan minum (*Ascending liquid pentatonic tones*)
-  - Fanfare kenaikan level (*Triumphant major arpeggio C-E-G-C*)
-  - Pengambilan loot koin (*Chime sparkle*)
-
-### 12. Quest Tracker & Ground Loot Drops
-- **Sistem Misi (Quests)**: Pelacak objektif perburuan monster berhadiah koin emas dan EXP.
-- **Loot Drop di Tanah**: Monster menjatuhkan kantong koin emas berkilauan, botol ramuan, dan item langka (*Fenrir Crest*) yang dapat diambil saat pemain mendekatinya (*auto-pickup*).
-
-### 13. Engine Debug Overlay (F3) & Mobile Gamepad
-- **Tombol F3 / Debug UI**: Menampilkan visualisasi kotak tabrakan (*AABB hitboxes* warna hijau untuk entitas, merah untuk rintangan padat), lingkaran radius Aggro (kuning) & Leash (oranye) monster, dan vektor kecepatan.
-- **Mobile Virtual Touch Gamepad**: D-Pad dan tombol aksi sentuh (ATK, SKILL, TALK, BAG, HP, MP) di bawah canvas yang mendukung layar sentuh smartphone maupun klik mouse desktop.
-- **Stress Test Tool**: Tombol `+20 Slimes` dan `+4 Bots` untuk menguji stabilitas FPS engine di bawah beban puluhan entitas aktif.
+🎮 **Live Demo Web (GitHub Pages)**: [https://azyte.github.io/browser-2d-platformer/](https://azyte.github.io/browser-2d-platformer/)  
+📦 **Test Suite Coverage**: **20 Test Files, 92 Unit Tests (100% Passing)**  
+⚡ **Target Performance**: Stabil **60 FPS** dengan ratusan entitas simultan pada perangkat desktop dan mobile.
 
 ---
 
-## 🎮 Panduan Kontrol
+## 📑 Daftar Isi
 
-| Tombol Keyboard | Tombol Sentuh Mobile | Aksi |
-| :--- | :--- | :--- |
-| **W, A, S, D** / **Panah** | **D-Pad (▲, ▼, ◄, ►)** | Jalan 8 Arah (Normalisasi diagonal) |
-| **Space** / **J** | **ATK** | Serangan Dasar Pedang (Basic Attack) |
-| **K** / **1** | **SKILL** | Jurus Area Whirlwind Slash (20 MP) |
-| **F** | **TALK** | Bicara dengan NPC (Tetua Rowan) / Dialog Interaktif |
-| **I** / **B** | **BAG** | Buka / Tutup Tas Inventaris & Equipment Paperdoll |
-| **1, 2, 3** | **Klik Mouse / Touch** | Memilih Opsi Jawaban Dialog NPC |
-| **1 s/d 8** | **Klik Slot** | Memasang / Menggunakan Item dari Tas Inventaris |
-| **Q** | **HP** | Minum Ramuan Darah (+50 HP) |
-| **E** | **MP** | Minum Ramuan Mana (+35 MP) |
-| **Escape** | **[X] Close** | Menutup Jendela Dialog NPC atau Modal Inventaris |
-| **F3** / Tombol UI | **Debug Button** | Toggle Visualisasi Hitbox & Radar AI |
+1. [Ikhtisar Proyek & Filosofi Desain](#-ikhtisar-proyek--filosofi-desain)
+2. [Diagram Arsitektur Sistem (Mermaid)](#-diagram-arsitektur-sistem)
+3. [Fondasi Matematika & Algoritma Engine](#-fondasi-matematika--algoritma-engine)
+   - [Fixed Timestep 60Hz & Render Alpha Interpolation](#1-fixed-timestep-60hz--render-alpha-interpolation)
+   - [Normalisasi Vektor Pergerakan Diagonal](#2-normalisasi-vektor-pergerakan-diagonal)
+   - [Axis-Separated AABB Sliding Collision & Minimum Translation Vector](#3-axis-separated-aabb-sliding-collision--minimum-translation-vector)
+   - [Dynamic 2.5D Depth Y-Sorting](#4-dynamic-25d-depth-y-sorting)
+   - [Formula Kalkulasi Tempur & Mitigasi Armor](#5-formula-kalkulasi-tempur--mitigasi-armor)
+   - [Radial Lighting Masking (Canvas destination-out)](#6-radial-lighting-masking-canvas-destination-out)
+4. [Bedah 13 Sistem Inti Engine](#-bedah-13-sistem-inti-engine)
+5. [Skema Kontrol Pemain (Desktop & Mobile)](#-skema-kontrol-pemain)
+6. [Struktur Direktori Codebase](#-struktur-direktori-codebase)
+7. [Tech Stack & Standar Kualitas](#-tech-stack--standar-kualitas)
+8. [Panduan Instalasi & Eksekusi Lokal](#-panduan-instalasi--eksekusi-lokal)
+
+---
+
+## 💡 Ikhtisar Proyek & Filosofi Desain
+
+Proyek ini mendemonstrasikan rekayasa perangkat lunak tingkat rendah (*low-level software engineering*) pada web runtime modern. Alih-alih mengandalkan black-box game engines yang berat, seluruh subsistem fundamental dibangun secara mandiri:
+
+1. **Zero External Game Engine Dependencies**: 100% logika matematika vektor, loop tick fisika, spatial detection, state management, hingga rendering raster diimplementasikan secara langsung di atas primitive API browser.
+2. **Data-Oriented Entity-Component-System (ECS)**: Menghindari *polymorphism overhead* dan *deep inheritance trees* dengan memisahkan state data murni (*Components*) dari fungsi pengolah (*Systems*).
+3. **Deterministik & Frame-Rate Independent**: Logika fisika dan pertempuran dieksekusi pada frekuensi tetap 60 Hz terlepas dari refresh rate monitor client (60Hz, 120Hz, 144Hz, atau 240Hz).
+4. **Procedural Web Audio (Zero Audio Assets)**: Efek suara (ayunan pedang, benturan, whirlwind, konsumsi potion, level up, loot pickup) disintesis secara matematis menggunakan osilator Web Audio API tanpa membutuhkan aset file `.mp3` atau `.wav` eksternal.
+
+---
+
+## 🏛️ Diagram Arsitektur Sistem
+
+Alur kerja engine mengikuti siklus unidirectional yang terstruktur rapi:
+
+```mermaid
+flowchart TD
+    subgraph InputLayer ["1. Hardware Input & Event Handling"]
+        KBD[Keyboard Input]
+        MSE[Mouse Coordinates]
+        TPD[Virtual Touch Gamepad]
+        INP["InputManager (State Cache & Debounce)"]
+        KBD --> INP
+        MSE --> INP
+        TPD --> INP
+    end
+
+    subgraph CoreLoop ["2. Core Loop (GameLoop.ts)"]
+        RAF["requestAnimationFrame(timestamp)"]
+        ACC["Accumulator Pattern (dt = 1/60s)"]
+        CLAMP["Spiral of Death Clamp (maxFrameTime = 0.25s)"]
+        ALPHA["Alpha Calculation (accumulator / dt)"]
+        RAF --> CLAMP --> ACC --> ALPHA
+    end
+
+    subgraph ECSWorld ["3. Data-Oriented ECS World (World.ts)"]
+        ENT["Entity ID Allocator & Bitmasks"]
+        CMP["Component Stores (Sparse Array / Map)"]
+        ENT --- CMP
+    end
+
+    subgraph SimulationPipeline ["4. Fixed Simulation Tick (60 Hz Deterministic)"]
+        DIR["TopDownMovementSystem (Vector Normalization)"]
+        COL["Collision & World Boundary System (Sliding MTV)"]
+        FSM["MonsterAISystem (Aggro, Patrol, Leash FSM)"]
+        BOT["SimulatedMMOPlayerSystem (Autonomous Bots)"]
+        NPC["NPCSystem (Proximity & Branching Dialog)"]
+        INV["InventorySystem (Bag Grid & Equipment Paperdoll)"]
+        CBT["CombatSystem (Hitboxes, Cooldowns, Level-Up)"]
+        QST["QuestSystem & LootSystem (Drop Tables & Tracking)"]
+        DAY["DayNightCycleSystem (24h Astronomical Clock)"]
+        SND["SoundSynthesizer (Web Audio Oscillators)"]
+
+        DIR --> COL --> FSM --> BOT --> NPC --> INV --> CBT --> QST --> DAY --> SND
+    end
+
+    subgraph RenderPipeline ["5. Multi-Pass Canvas 2D Render Pipeline"]
+        CAM["Camera2D (Smooth Lerp Tracking)"]
+        P1["Pass 1: Terrain, Roads, Sanctuary Runes, Props"]
+        P2["Pass 2: Depth Y-Sorted Sprites (Entities, NPCs, Trees)"]
+        P3["Pass 3: Floating Combat Text & Particle Sparks"]
+        P4["Pass 4: Day/Night Dynamic Darkness (destination-out Radial Cutout)"]
+        P5["Pass 5: Screen-Space HUD, Minimap, Dialog, Bag Modal"]
+        P6["Pass 6: F3 Debug Overlay (AABBs, AI Leash/Aggro Radii)"]
+
+        CAM --> P1 --> P2 --> P3 --> P4 --> P5 --> P6
+    end
+
+    INP --> SimulationPipeline
+    ACC --> SimulationPipeline
+    SimulationPipeline <--> ECSWorld
+    SimulationPipeline --> RenderPipeline
+    ALPHA --> RenderPipeline
+```
+
+---
+
+## 📐 Fondasi Matematika & Algoritma Engine
+
+### 1. Fixed Timestep 60Hz & Render Alpha Interpolation
+
+Game loop memisahkan eksekusi fisika dari refresh rate monitor. Jika monitor berjalan pada 144Hz atau terjadi drop FPS, simulasi dunia tetap stabil dan deterministik:
+
+$$\Delta t = \frac{1}{60} \approx 0.01667 \text{ s}$$
+
+$$\text{accumulator} = \min(\text{accumulator} + \text{frameElapsed}, \text{maxFrameTime})$$
+
+$$\alpha = \frac{\text{accumulator}}{\Delta t} \quad (0 \le \alpha < 1)$$
+
+Visualisasi koordinat saat render diinterpolasi menggunakan faktor $\alpha$:
+
+$$P_{\text{render}} = P_{\text{previous}} \cdot (1 - \alpha) + P_{\text{current}} \cdot \alpha$$
+
+```typescript
+// Implementasi pada src/core/GameLoop.ts
+while (this.accumulator >= this.targetDt) {
+  this.update(this.targetDt);
+  this.accumulator -= this.targetDt;
+}
+const alpha = this.accumulator / this.targetDt;
+this.render(alpha);
+```
+
+### 2. Normalisasi Vektor Pergerakan Diagonal
+
+Pada pergerakan 8 arah (*top-down*), menekan dua tombol sekaligus (misal W + D) menghasilkan vektor $(1, 1)$ dengan panjang $\sqrt{1^2 + 1^2} = \sqrt{2} \approx 1.4142$ (+41.4% lebih cepat). Engine menormalkan vektor arah ke magnitudo unit $1.0$:
+
+$$\vec{v} = (dx, dy)$$
+
+$$\|\vec{v}\| = \sqrt{dx^2 + dy^2}$$
+
+$$\hat{v} = \begin{cases} \left(\frac{dx}{\|\vec{v}\|}, \frac{dy}{\|\vec{v}\|}\right) & \text{jika } \|\vec{v}\| > 0 \\ (0, 0) & \text{jika } \|\vec{v}\| = 0 \end{cases}$$
+
+$$\vec{v}_{\text{final}} = \hat{v} \cdot \text{speed}$$
+
+```typescript
+// Implementasi pada src/rpg/TopDownMovementSystem.ts
+const len = Math.hypot(moveX, moveY);
+if (len > 0) {
+  vel.vx = (moveX / len) * speed;
+  vel.vy = (moveY / len) * speed;
+} else {
+  vel.vx = 0;
+  vel.vy = 0;
+}
+```
+
+### 3. Axis-Separated AABB Sliding Collision & Minimum Translation Vector
+
+Untuk mencegah pemain atau bot tersangkut pada sudut rintangan (pohon, batu granit, bangunan Sanctuary), deteksi dan resolusi tabrakan AABB (*Axis-Aligned Bounding Box*) dipisahkan secara ortogonal pada sumbu $X$ kemudian sumbu $Y$:
+
+```
+Posisi Awal -> [Uji Translasi Sumbu X] -> [Resolusi Tabrakan X] -> [Uji Translasi Sumbu Y] -> [Resolusi Tabrakan Y]
+```
+
+Karakter dapat meluncur (*smooth wall sliding*) di sepanjang permukaan rintangan walaupun arah gerak diagonal terhambat pada salah satu sumbu:
+
+```typescript
+// Resolusi Translasi Sumbu X
+transform.x += velocity.vx * dt;
+if (checkCollision(entityAABB, obstacleAABB)) {
+  transform.x = resolveAxisX(transform.x, obstacleAABB);
+  velocity.vx = 0;
+}
+
+// Resolusi Translasi Sumbu Y
+transform.y += velocity.vy * dt;
+if (checkCollision(entityAABB, obstacleAABB)) {
+  transform.y = resolveAxisY(transform.y, obstacleAABB);
+  velocity.vy = 0;
+}
+```
+
+### 4. Dynamic 2.5D Depth Y-Sorting
+
+Dalam perspektif ortografis top-down 2D, ilusi kedalaman spasial (*pseudo-3D z-depth*) dicapai dengan mengurutkan urutan render seluruh entitas dinamis dan objek dekorasi dunia berdasarkan koordinat alas kaki (*base Y anchor*):
+
+$$\text{baseY} = y + \text{height}$$
+
+$$\text{Comparator}(A, B) = \text{baseY}_A - \text{baseY}_B$$
+
+- Saat pemain berjalan di atas koordinat alas pohon, pohon digambar belakangan sehingga kanopi daun menutupi kepala pemain.
+- Saat pemain melangkah ke bawah koordinat alas pohon, pemain digambar belakangan sehingga berada di depan batang pohon.
+
+```typescript
+// Implementasi pada src/rpg/MMORenderSystem.ts
+renderables.sort((a, b) => {
+  const baseYA = a.transform.y + a.transform.height;
+  const baseYB = b.transform.y + b.transform.height;
+  return baseYA - baseYB;
+});
+```
+
+### 5. Formula Kalkulasi Tempur & Mitigasi Armor
+
+Sistem tempur mengkalkulasi pengurangan kerusakan fisik (*damage mitigation*) berbasis status pertahanan:
+
+$$\text{NetDamage} = \max\left(1, \text{Atk}_{\text{attacker}} - \text{Def}_{\text{target}}\right)$$
+
+$$\text{FinalDamage} = \begin{cases} \lfloor \text{NetDamage} \cdot 1.5 \rfloor & \text{jika Critical Hit} \\ \text{NetDamage} & \text{jika Normal Hit} \end{cases}$$
+
+$$\text{WhirlwindDamage} = \lfloor \text{NetDamage} \cdot 2.2 \rfloor \quad (\text{Radius } 75\text{px}, \text{ Area of Effect})$$
+
+Formula progresi EXP per level menggunakan deret pertumbuhan dinamis:
+
+$$\text{EXP}_{\text{next}} = \lfloor 100 \cdot (\text{Level})^{1.35} \rfloor$$
+
+### 6. Radial Lighting Masking (Canvas destination-out)
+
+Siklus 24 jam mengatur warna dan opasitas kegelapan malam (*ambient darkness*). Untuk menghasilkan efek pencahayaan dinamis di sekitar sumber cahaya (obor pemain, lentera bot, api unggun Sanctuary), engine memanfaatkan komposit `destination-out` dengan gradien radial 2-stop:
+
+$$\text{Alpha}(r) = \begin{cases} 1.0 & \text{untuk } r \le r_0 \\ 1.0 - \frac{r - r_0}{r_1 - r_0} & \text{untuk } r_0 < r \le r_1 \\ 0.0 & \text{untuk } r > r_1 \end{cases}$$
+
+```typescript
+// Implementasi pada src/rpg/MMORenderSystem.ts
+ctx.save();
+ctx.fillStyle = `rgba(10, 15, 30, ${ambientDarkness})`;
+ctx.fillRect(0, 0, screenWidth, screenHeight);
+
+// Memotong kegelapan malam dengan mode destination-out
+ctx.globalCompositeOperation = 'destination-out';
+lights.forEach(light => {
+  const grad = ctx.createRadialGradient(light.x, light.y, 0, light.x, light.y, light.radius);
+  grad.addColorStop(0, 'rgba(0, 0, 0, 1)');
+  grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(light.x, light.y, light.radius, 0, Math.PI * 2);
+  ctx.fill();
+});
+ctx.restore();
+```
+
+---
+
+## 🛡️ Bedah 13 Sistem Inti Engine
+
+| No | Modul / Sistem | Komponen Utama | Deskripsi Teknis & Mekanisme |
+| :-: | :--- | :--- | :--- |
+| **1** | **Core GameLoop** | `GameLoop.ts` | Pola Fixed Timestep 60Hz dengan render alpha accumulator dan perlindungan spiral of death clamp. |
+| **2** | **Type-Safe ECS Engine** | `World.ts`, `Entity.ts`, `Component.ts` | Data-oriented architecture dengan query teroptimasi, batch system execution, dan deferred deletion queue. |
+| **3** | **Top-Down Movement** | `TopDownMovementSystem.ts` | Normalisasi vektor 8 arah dan pemisahan sumbu X/Y untuk pergerakan mulus tanpa hambatan sudut. |
+| **4** | **Camera 2D System** | `Camera2D.ts` | Smooth linear interpolation (Lerp) kamera pelacak pemain dengan viewport boundary clamping. |
+| **5** | **RPG Combat Engine** | `CombatSystem.ts` | Deteksi serangan AABB, cooldown handling, damage mitigation, critical chance, dan auto level-up. |
+| **6** | **Monster AI & FSM** | `MonsterAISystem.ts` | State machine musuh (Idle, Patrol, Chase, Attack, Return) dilengkapi mekanisme Anti-Kiting Leash & Respawn Queue. |
+| **7** | **Simulated MMO Bots** | `SimulatedMMOPlayerSystem.ts` | 4 bot otonom (Valkyrie, ShadowBlade, Merlin, HealerKun) dengan tingkah laku perburuan monster, auto-potion, dan chat. |
+| **8** | **Interactive NPC System** | `NPCSystem.ts` | Tetua Rowan dengan proximity prompt `[F]` dan branching dialog tree berhadiah Blessing of Sanctuary. |
+| **9** | **Visual Inventory & Paperdoll** | `InventorySystem.ts` | Grid tas 16 slot, penumpukan item otomatis, slot Weapon/Armor/Accessory dengan kalkulasi stat dinamis. |
+| **10** | **Day/Night Cycle & Lights** | `DayNightSystem.ts` | Jam astronomis 24 jam dengan 4 transisi fase waktu dan sistem radial light masking `destination-out`. |
+| **11** | **Procedural Web Audio** | `SoundSynthesizer.ts` | Sintesis efek suara 16-bit instan tanpa aset audio eksternal (slash, hit, whirlwind, drink, fanfare, coin chime). |
+| **12** | **Quests & Ground Loot** | `QuestSystem.ts`, `LootSystem.ts` | Pelacakan objektif berhadiah koin & EXP serta item drop fisik (potion, coin pouch, Fenrir Crest) dengan auto-pickup. |
+| **13** | **Debug & Touch Controls** | `DebugRenderSystem.ts`, `InputManager.ts` | Overlay visualisasi F3 (hitbox, radar aggro/leash) serta Virtual Touch Gamepad terintegrasi untuk mobile. |
+
+---
+
+## 🎮 Skema Kontrol Pemain
+
+Engine mendukung kontrol desktop ganda (Keyboard & Mouse) serta layar sentuh perangkat mobile secara responsif:
+
+| Aksi | Keyboard Shortcut | Mouse Desktop | Touch Gamepad Mobile | Keterangan |
+| :--- | :--- | :--- | :--- | :--- |
+| **Gerak 8 Arah** | `W, A, S, D` / `Panah` | - | `Virtual D-Pad (▲ ▼ ◄ ►)` | Normalisasi vektor unit 1.0 |
+| **Serangan Dasar** | `Space` / `J` | Klik Kiri Canvas | Tombol `[ATK]` | Ayunan pedang jarak dekat |
+| **Whirlwind Slash** | `K` / `1` | - | Tombol `[SKILL]` | Area of Effect 75px, konsumsi 20 MP |
+| **Bicara dengan NPC** | `F` | Klik Banner Dialog | Tombol `[TALK]` | Interaksi Tetua Rowan & Dialog |
+| **Buka/Tutup Tas** | `I` / `B` | Klik Tombol UI `BAG` | Tombol `[BAG]` | Modal Inventaris & Paperdoll |
+| **Pilihan Dialog** | `1, 2, 3` | Klik Baris Opsi | Ketuk Baris Opsi | Memilih cabang percakapan |
+| **Pasang/Pakai Item** | `1` s/d `8` | Klik Slot Tas | Ketuk Slot Tas | Equip Senjata/Zirah & Minum Potion |
+| **Minum Potion HP** | `Q` | - | Tombol `[HP]` | Memulihkan +50 HP instan |
+| **Minum Potion MP** | `E` | - | Tombol `[MP]` | Memulihkan +35 MP instan |
+| **Tutup Jendela Modal** | `Escape` | Klik Tombol `[X]` | Ketuk Tombol `[X]` | Menutup Dialog atau Tas |
+| **F3 Debug Visualizer**| `F3` | Klik Tombol `DEBUG` | Ketuk Tombol `DEBUG` | Toggle AABB Hitbox & AI Radar |
+
+---
+
+## 📁 Struktur Direktori Codebase
+
+```
+browser-2d-platformer/
+├── .github/
+│   └── workflows/
+│       └── deploy.yml              # CI/CD otomatis build & publish ke GitHub Pages
+├── dist/                           # Hasil kompilasi bundle produksi teroptimasi
+├── public/                         # Aset publik statis (favicon, manifest)
+├── src/
+│   ├── audio/
+│   │   ├── SoundSynthesizer.ts     # Synthesizer prosedural Web Audio API
+│   │   └── SoundSynthesizer.test.ts# Unit test osilator dan modulasi audio
+│   ├── core/
+│   │   ├── GameLoop.ts             # Fixed timestep loop dengan alpha accumulator
+│   │   ├── GameLoop.test.ts        # Unit test kestabilan tick loop
+│   │   ├── InputManager.ts         # Handler keyboard, mouse, dan virtual gamepad
+│   │   └── InputManager.test.ts    # Unit test mapping tombol dan input buffer
+│   ├── ecs/
+│   │   ├── Component.ts            # Registri tipe komponen generik
+│   │   ├── Entity.ts               # Tipe pengenal entitas unik
+│   │   ├── System.ts               # Interface kontrak sistem logika
+│   │   ├── World.ts                # Container ECS, query batch, dan lifecycle entitas
+│   │   └── World.test.ts           # Unit test registrasi dan iterasi ECS
+│   ├── physics/
+│   │   ├── AABB.ts                 # Algoritma interseksi Axis-Aligned Bounding Box
+│   │   ├── PhysicsComponents.ts    # TransformComponent & VelocityComponent
+│   │   ├── PhysicsSystem.ts        # Integrasi kecepatan dan posisi
+│   │   ├── Physics.test.ts         # Unit test matematika fisika
+│   │   ├── SweptAABB.ts            # Continuous collision detection
+│   │   ├── SweptAABB.test.ts       # Unit test tunnel prevention
+│   │   └── Vector2.ts              # Utilitas operasi vektor 2D
+│   ├── render/
+│   │   ├── Camera2D.ts             # Kamera 2D berfokus pada target dengan lerp
+│   │   ├── Camera2D.test.ts        # Unit test transformasi koordinat kamera
+│   │   ├── DebugRenderSystem.ts    # Render AABB dan radar status F3
+│   │   └── DebugRenderSystem.test.ts# Unit test toggle debug overlay
+│   ├── rpg/
+│   │   ├── ChatSystem.ts           # Log percakapan MMORPG interaktif
+│   │   ├── CombatSystem.ts         # Mekanika serang, damage mitigasi, level-up
+│   │   ├── CombatSystem.test.ts    # Unit test formula kalkulasi kerusakan
+│   │   ├── DayNightSystem.ts       # Siklus waktu 24 jam dan ambient color
+│   │   ├── DayNightSystem.test.ts  # Unit test fase pencahayaan
+│   │   ├── InventorySystem.ts      # Manajemen 16 slot tas dan 3 slot equipment
+│   │   ├── InventorySystem.test.ts # Unit test penumpukan item dan bonus status
+│   │   ├── LootSystem.ts           # Logika jatuhan ground loot dan auto-pickup
+│   │   ├── MMORenderSystem.ts      # Multi-pass renderer (Y-sort, lighting, UI)
+│   │   ├── MMORenderSystem.test.ts # Unit test pipeline rendering
+│   │   ├── MonsterAISystem.ts      # Finite state machine dan anti-kiting leash
+│   │   ├── MonsterAISystem.test.ts # Unit test transisi state AI
+│   │   ├── NPCSystem.ts            # Proximity check dan branching dialog tree
+│   │   ├── NPCSystem.test.ts       # Unit test alur percakapan NPC
+│   │   ├── QuestSystem.ts          # Pelacak misi perburuan dan reward
+│   │   ├── QuestAndLoot.test.ts    # Unit test sistem quest dan loot
+│   │   ├── RPGComponents.ts        # Definisi komponen spesifik RPG
+│   │   ├── RPGComponents.test.ts   # Unit test komponen data
+│   │   ├── SimulatedMMOPlayerSystem.ts # Otomasi bot pemain simulasi
+│   │   ├── SimulatedMMO.test.ts    # Unit test aksi bot mandiri
+│   │   ├── TopDownMovementSystem.ts# Normalisasi pergerakan 8 arah
+│   │   └── TopDownMovementSystem.test.ts # Unit test kalkulasi vektor
+│   ├── index.html                  # Shell canvas aplikasi
+│   ├── main.ts                     # Entry point bootstrapping engine
+│   └── style.css                   # Tata letak canvas dan tombol kontrol
+├── package.json                    # Konfigurasi dependensi dan skrip
+├── tsconfig.json                   # Konfigurasi TypeScript mode strict
+└── vite.config.ts                  # Konfigurasi bundler Vite
+```
 
 ---
 
 ## 🛠️ Tech Stack & Standar Kualitas
 
-- **Bahasa**: TypeScript (Strict Mode: `noImplicitAny`, `strictNullChecks`, `noUnusedLocals`, `exactOptionalPropertyTypes`)
-- **Rendering**: HTML5 Canvas 2D API (60 FPS Fixed Timestep + Alpha Interpolation + Radial Lighting Masks)
-- **Audio**: Web Audio API (Synthesizer Prosedural)
-- **Bundler**: Vite
-- **Testing**: Vitest (20 Test Suites, 92 Unit Tests 100% Passing)
-- **Deployment**: GitHub Pages CI/CD Workflow
+- **Core Programming Language**: **TypeScript 5.x** dengan konfigurasi paling ketat (`strict: true`, `noImplicitAny: true`, `strictNullChecks: true`, `noUnusedLocals: true`, `exactOptionalPropertyTypes: true`).
+- **Rendering Technology**: **Native HTML5 Canvas 2D Context API** memanfaatkan multi-pass rasterization, transformasi matriks kamera 2D, sub-pixel interpolasi, dan compositing modes (`source-over`, `destination-out`).
+- **Sound Architecture**: **Native Web Audio API** dengan sintesis osilator gelombang (*Sine*, *Sawtooth*, *Square*), gain envelope exponential ramping, dan multi-frequency chords tanpa audio stream eksternal.
+- **Unit Testing Framework**: **Vitest** dengan 20 test suite dan 92 unit test komprehensif yang mencakup seluruh kalkulasi matematika, fisika, AI, status RPG, dialog, dan inventaris.
+- **Bundler & Build Tool**: **Vite** dengan kompilasi rollup berkecepatan tinggi dan hot-module-replacement (HMR).
+- **Deployment Pipeline**: **GitHub Actions CI/CD** yang secara otomatis menguji kode, memvalidasi tipe TypeScript, melakukan kompilasi produksi, dan mendeploy ke **GitHub Pages**.
 
 ---
 
-## 🚀 Menjalankan Project Secara Lokal
+## 🚀 Panduan Instalasi & Eksekusi Lokal
 
-### 1. Kloning Repositori & Pasang Dependensi
+### Prasyarat
+- **Node.js**: Versi `>= 18.0.0`
+- **npm**: Versi `>= 9.0.0`
+
+### 1. Kloning Repositori
 ```bash
 git clone git@github.com:Azyte/browser-2d-platformer.git
 cd browser-2d-platformer
+```
+
+### 2. Pasang Dependensi
+```bash
 npm install
 ```
 
-### 2. Jalankan Server Development
+### 3. Jalankan Server Development
 ```bash
 npm run dev
 ```
-Buka browser pada `http://localhost:5173`.
+Buka peramban web pada alamat `http://localhost:5173`.
 
-### 3. Jalankan Pengujian Unit Test
+### 4. Eksekusi Seluruh Unit Test
 ```bash
-npm run test
+npm test
 ```
+Seluruh 20 test suite dan 92 unit test akan dieksekusi secara paralel.
 
-### 4. Build Bundel Produksi
+### 5. Kompilasi Produksi (Type-check & Build)
 ```bash
 npm run build
 ```
-Hasil build produksi teroptimasi akan dihasilkan di folder `dist/`.
+Bundle web produksi siap guna akan dihasilkan di dalam folder `dist/`.
+
+---
+
+## 📄 Lisensi
+
+Proyek ini didistribusikan di bawah lisensi terbuka [MIT](LICENSE). Bebas digunakan, dipelajari, dan dikembangkan lebih lanjut untuk keperluan edukasi dan rekayasa perangkat lunak.
