@@ -29,6 +29,7 @@ import { NPCComponent, NPCSystem, createElderRowanDialogue, createMerchantElricD
 import { InventoryComponent, InventorySystem, createStarterInventory } from './rpg/InventorySystem';
 import { ShopSystem } from './rpg/ShopSystem';
 import { DayNightSystem } from './rpg/DayNightSystem';
+import { StageSystem } from './rpg/StageSystem';
 import type { Entity } from './ecs/Entity';
 
 // ============================================================================
@@ -57,6 +58,9 @@ app.innerHTML = `
           </p>
         </div>
         <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+          <span id="badge-stage" style="background: #1f6feb; color: #ffffff; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;">
+            ⚔️ Stage 1: 0/4
+          </span>
           <span style="background: #238636; color: #ffffff; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;">
             🟢 Online (CH 1)
           </span>
@@ -208,6 +212,7 @@ const clockEl = document.querySelector<HTMLDivElement>('#clock-val')!;
 const playerLvlEl = document.querySelector<HTMLDivElement>('#player-lvl')!;
 const playerGoldEl = document.querySelector<HTMLDivElement>('#player-gold')!;
 const entitiesEl = document.querySelector<HTMLDivElement>('#entities-val')!;
+const badgeStageEl = document.querySelector<HTMLSpanElement>('#badge-stage');
 const btnDebugToggle = document.querySelector<HTMLButtonElement>('#btn-debug-toggle')!;
 const btnAudioToggle = document.querySelector<HTMLButtonElement>('#btn-audio-toggle')!;
 const btnStressMobs = document.querySelector<HTMLButtonElement>('#btn-stress-mobs')!;
@@ -240,6 +245,7 @@ const npcSystem = new NPCSystem();
 const inventorySystem = new InventorySystem();
 const shopSystem = new ShopSystem();
 const dayNightSystem = new DayNightSystem({ cycleDurationSeconds: 180, initialHour: 10.0 });
+const stageSystem = new StageSystem();
 const soundSynth = new SoundSynthesizer({ enabled: true, volume: 0.3 });
 const debugSystem = new DebugRenderSystem();
 const world = new World();
@@ -269,7 +275,8 @@ const mmoRenderSystem = new MMORenderSystem(
   questManager,
   npcSystem,
   dayNightSystem,
-  shopSystem
+  shopSystem,
+  stageSystem
 );
 
 // Toggle Debug Overlay
@@ -725,8 +732,9 @@ function findNearestMonster(
 
 const loop = new GameLoop({
   update: (fixedDt: number) => {
-    // 0. Update Siklus Siang/Malam Dunia
+    // 0. Update Siklus Siang/Malam Dunia & Stage System
     dayNightSystem.update(fixedDt);
+    stageSystem.update(fixedDt);
 
     const playerTrans = world.getComponent(player, TransformComponent);
     const playerVel = world.getComponent(player, VelocityComponent);
@@ -907,9 +915,22 @@ const loop = new GameLoop({
           questManager.onMonsterKilled(mPlate.name, world, player, combatSystem, chatManager, soundSynth);
         }
 
+        const mVisual = world.getComponent(m, MMOVisualComponent);
+        const isBoss = mStats.level >= 7 || mVisual?.visualType === 'boss' || (mPlate?.name.includes('Fenrir') ?? false);
+        const respawnDelay = stageSystem.getRespawnDelay(mStats.level, isBoss);
+
+        stageSystem.onMonsterKilled(
+          mVisual?.visualType ?? 'slime',
+          mPlate?.name ?? 'Monster',
+          world,
+          player,
+          chatManager,
+          soundSynth
+        );
+
         deadMonsters.push({
           entity: m,
-          respawnTimer: 5.0,
+          respawnTimer: respawnDelay,
           homeX: mAi.homeX,
           homeY: mAi.homeY,
           maxHp: mStats.maxHp,
@@ -967,6 +988,9 @@ const loop = new GameLoop({
     upsEl.textContent = loop.ups.toString();
     clockEl.textContent = `${dayNightSystem.getTimeString()} ${dayNightSystem.getPhase().toUpperCase()}`;
     entitiesEl.textContent = mmoRenderSystem.visibleEntitiesCount.toString();
+    if (badgeStageEl) {
+      badgeStageEl.textContent = stageSystem.getStageBadgeString();
+    }
 
     const pStats = world.getComponent(player, StatsComponent);
     if (pStats) {

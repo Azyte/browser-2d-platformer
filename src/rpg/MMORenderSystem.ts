@@ -17,6 +17,7 @@ import { InventoryComponent } from './InventorySystem';
 import type { DayNightSystem, LightSource } from './DayNightSystem';
 import { SimulatedPlayerComponent } from './RPGComponents';
 import type { ShopSystem } from './ShopSystem';
+import type { StageSystem } from './StageSystem';
 
 export type MMOVisualType =
   | 'player'
@@ -213,6 +214,24 @@ export function calculateShopModalBounds(vw: number, vh: number): UIRect {
   return { x: mx, y: my, w: mw, h: mh };
 }
 
+/**
+ * Menghitung koordinat dan ukuran panel Stage HUD di kiri atas di bawah profil pemain.
+ */
+export function calculateStageHUDCardBounds(): UIRect {
+  return { x: 14, y: 94, w: 210, h: 24 };
+}
+
+/**
+ * Menghitung koordinat dan ukuran banner kemenangan Stage di tengah atas layar.
+ */
+export function calculateStageBannerBounds(vw: number): UIRect {
+  const w = Math.min(480, vw - 28);
+  const h = 54;
+  const x = Math.round((vw - w) / 2);
+  const y = 24;
+  return { x, y, w, h };
+}
+
 
 /**
  * MMORenderSystem merender dunia MMORPG 2D top-down:
@@ -237,7 +256,8 @@ export class MMORenderSystem implements System {
     private readonly questManager?: QuestManager,
     private readonly npcSystem?: NPCSystem,
     private readonly dayNightSystem?: DayNightSystem,
-    private readonly shopSystem?: ShopSystem
+    private readonly shopSystem?: ShopSystem,
+    private readonly stageSystem?: StageSystem
   ) {}
 
   /**
@@ -1157,6 +1177,12 @@ export class MMORenderSystem implements System {
         this.renderPlayerHUDPanel(ctx, 14, 14, nameplate?.name ?? 'Hero', stats);
       }
 
+      // 1b. Panel Progress Stage Progresif di bawah profil pemain
+      if (this.stageSystem) {
+        const stageBounds = calculateStageHUDCardBounds();
+        this.renderStageHUD(ctx, stageBounds.x, stageBounds.y, stageBounds.w, stageBounds.h, this.stageSystem);
+      }
+
       // 2. Action Hotbar di Tengah Bawah (Sembunyikan saat dialog atau toko terbuka)
       if (combat && stats && !isDialogueOpen && !isShopOpen) {
         const actionBounds = calculateActionBarBounds(vw, vh);
@@ -1186,6 +1212,11 @@ export class MMORenderSystem implements System {
     if (this.chatManager && !isDialogueOpen && !isShopOpen) {
       const chatBounds = calculateChatBoxBounds(vw, vh);
       this.renderChatBox(ctx, chatBounds.x, chatBounds.y, chatBounds.w, chatBounds.h);
+    }
+
+    // 6. Stage Completion Victory Banner (di bagian tengah atas layar)
+    if (this.stageSystem && this.stageSystem.bannerTimer > 0) {
+      this.renderStageBanner(ctx, vw, this.stageSystem);
     }
 
     ctx.restore();
@@ -1422,6 +1453,107 @@ export class MMORenderSystem implements System {
     const expPct = Math.round((stats.exp / stats.nextLevelExp) * 100);
     ctx.fillStyle = '#f0c674';
     ctx.fillText(`EXP ${expPct}%`, barX + barW / 2, expY + 8);
+  }
+
+  /**
+   * Panel Progres Stage Aktif di bawah Player HUD Panel.
+   */
+  private renderStageHUD(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    stageSystem: StageSystem
+  ): void {
+    const stage = stageSystem.getCurrentStage();
+
+    ctx.fillStyle = 'rgba(13, 17, 23, 0.88)';
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = '#30363d';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(x, y, w, h);
+
+    // Judul Stage
+    ctx.fillStyle = '#58a6ff';
+    ctx.font = 'bold 10px monospace';
+    ctx.textAlign = 'left';
+    const stageLabel = `⚔️ Stg.${stage.stageNumber}: ${stage.targetMonsterType.toUpperCase()}`;
+    ctx.fillText(stageLabel, x + 6, y + 11, 140);
+
+    // Target Kill Count
+    ctx.fillStyle = '#e6edf3';
+    ctx.font = 'bold 9px monospace';
+    ctx.textAlign = 'right';
+    const killText = `${stageSystem.currentKills}/${stage.requiredKills}`;
+    ctx.fillText(killText, x + w - 6, y + 11, 55);
+
+    // Mini Progress Bar di bawah
+    const barX = x + 6;
+    const barY = y + 15;
+    const barW = w - 12;
+    const barH = 5;
+    const progress = stageSystem.getKillProgressRatio();
+
+    ctx.fillStyle = '#21262d';
+    ctx.fillRect(barX, barY, barW, barH);
+    ctx.fillStyle = '#238636';
+    ctx.fillRect(barX, barY, Math.round(barW * progress), barH);
+    ctx.strokeStyle = '#30363d';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(barX, barY, barW, barH);
+  }
+
+  /**
+   * Banner Kemenangan Stage di tengah atas layar browser.
+   */
+  private renderStageBanner(
+    ctx: CanvasRenderingContext2D,
+    vw: number,
+    stageSystem: StageSystem
+  ): void {
+    const bounds = calculateStageBannerBounds(vw);
+    const bx = bounds.x;
+    const by = bounds.y;
+    const bw = bounds.w;
+    const bh = bounds.h;
+
+    // Hitung fade in / fade out berdasarkan bannerTimer (durasi 4.0s)
+    let alpha = 1.0;
+    if (stageSystem.bannerTimer < 0.6) {
+      alpha = stageSystem.bannerTimer / 0.6;
+    } else if (stageSystem.bannerDuration - stageSystem.bannerTimer < 0.5) {
+      alpha = (stageSystem.bannerDuration - stageSystem.bannerTimer) / 0.5;
+    }
+    alpha = Math.max(0, Math.min(1, alpha));
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+
+    // Frame emas berkilau
+    ctx.fillStyle = 'rgba(22, 27, 34, 0.95)';
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.strokeStyle = '#f0c674';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(bx, by, bw, bh);
+
+    // Inner subtle glow border
+    ctx.strokeStyle = 'rgba(240, 198, 116, 0.3)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(bx + 3, by + 3, bw - 6, bh - 6);
+
+    // Header Kemenangan
+    ctx.fillStyle = '#f0c674';
+    ctx.font = 'bold 13px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(stageSystem.bannerText, bx + bw / 2, by + 22, bw - 20);
+
+    // Subtext reward dan stage berikutnya
+    ctx.fillStyle = '#e6edf3';
+    ctx.font = '10px monospace';
+    ctx.fillText(stageSystem.bannerSubtext, bx + bw / 2, by + 40, bw - 20);
+
+    ctx.restore();
   }
 
   /**

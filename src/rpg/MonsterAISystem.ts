@@ -18,7 +18,7 @@ import type { CombatSystem } from './CombatSystem';
 export class MonsterAISystem implements System {
   public patrolSpeed: number = 40;
   public chaseSpeed: number = 95;
-  public respawnDuration: number = 5.0; // Waktu hidup kembali setelah mati
+  public respawnDuration: number = 20.0; // Waktu hidup kembali setelah mati diperpanjang dari 5.0s ke 20.0s
 
   constructor(private readonly combatSystem: CombatSystem) {}
 

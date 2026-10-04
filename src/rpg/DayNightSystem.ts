@@ -99,16 +99,21 @@ export class DayNightSystem {
   /**
    * Menghasilkan warna ambient overlay berdasarkan fase waktu dunia.
    */
+  /**
+   * Menghasilkan warna ambient overlay berdasarkan fase waktu dunia.
+   */
   public getAmbientColor(): string {
     const darkness = this.getAmbientDarkness();
     const phase = this.getPhase();
 
     if (phase === 'dusk') {
-      // Nuansa ungu lembayung senja
-      return `rgba(45, 15, 60, ${darkness.toFixed(2)})`;
+      // Nuansa hangat keemasan senja yang lembut dan tidak menyilaukan
+      const duskAlpha = (darkness * 0.35).toFixed(2);
+      return `rgba(50, 26, 12, ${duskAlpha})`;
     } else if (phase === 'dawn') {
-      // Nuansa kuning keemasan fajar
-      return `rgba(60, 35, 10, ${darkness.toFixed(2)})`;
+      // Nuansa kuning fajar lembut
+      const dawnAlpha = (darkness * 0.40).toFixed(2);
+      return `rgba(55, 32, 10, ${dawnAlpha})`;
     } else if (phase === 'night') {
       // Nuansa biru malam pekat (deep midnight navy)
       return `rgba(5, 10, 26, ${darkness.toFixed(2)})`;
@@ -128,6 +133,8 @@ export class DayNightSystem {
     const darkness = this.getAmbientDarkness();
     if (darkness <= 0.04) return; // Tidak perlu render lighting di tengah hari cerah
 
+    const phase = this.getPhase();
+
     ctx.save();
 
     // 1. Gambar overlay kegelapan ambient menutupi seluruh layar viewport
@@ -135,45 +142,48 @@ export class DayNightSystem {
     ctx.fillRect(0, 0, cam.viewportWidth, cam.viewportHeight);
 
     // 2. Carve out radial lights menggunakan destination-out
-    ctx.globalCompositeOperation = 'destination-out';
+    // Pada saat dusk (senja) atau dawn (fajar), matahari masih menyinari langit sehingga tidak melubangi layar secara tajam
+    if (phase === 'night') {
+      ctx.globalCompositeOperation = 'destination-out';
 
-    for (const light of lights) {
-      // Translasi koordinat dunia ke layar (screen space)
-      const screenX = light.x - cam.x;
-      const screenY = light.y - cam.y;
+      for (const light of lights) {
+        // Translasi koordinat dunia ke layar (screen space)
+        const screenX = light.x - cam.x;
+        const screenY = light.y - cam.y;
 
-      // Culling jika sumber cahaya berada di luar layar
-      if (
-        screenX + light.radius < 0 ||
-        screenX - light.radius > cam.viewportWidth ||
-        screenY + light.radius < 0 ||
-        screenY - light.radius > cam.viewportHeight
-      ) {
-        continue;
+        // Culling jika sumber cahaya berada di luar layar
+        if (
+          screenX + light.radius < 0 ||
+          screenX - light.radius > cam.viewportWidth ||
+          screenY + light.radius < 0 ||
+          screenY - light.radius > cam.viewportHeight
+        ) {
+          continue;
+        }
+
+        // Efek flicker api obor/lentera bernafas tenang (2.5 Hz alami, bukan getaran menyilaukan)
+        const flicker = Math.sin(this.animTimer * 2.5 + light.x) * 1.5;
+        const effectiveRadius = Math.max(10, light.radius + flicker);
+        const intensity = light.intensity ?? 0.85;
+
+        const grad = ctx.createRadialGradient(
+          screenX,
+          screenY,
+          effectiveRadius * 0.15,
+          screenX,
+          screenY,
+          effectiveRadius
+        );
+
+        grad.addColorStop(0, `rgba(0, 0, 0, ${intensity.toFixed(2)})`);
+        grad.addColorStop(0.5, `rgba(0, 0, 0, ${(intensity * 0.5).toFixed(2)})`);
+        grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(screenX, screenY, effectiveRadius, 0, Math.PI * 2);
+        ctx.fill();
       }
-
-      // Efek flicker api obor/lentera lembut
-      const flicker = Math.sin(this.animTimer * 12 + light.x) * 4;
-      const effectiveRadius = Math.max(10, light.radius + flicker);
-      const intensity = light.intensity ?? 0.85;
-
-      const grad = ctx.createRadialGradient(
-        screenX,
-        screenY,
-        effectiveRadius * 0.12,
-        screenX,
-        screenY,
-        effectiveRadius
-      );
-
-      grad.addColorStop(0, `rgba(0, 0, 0, ${intensity.toFixed(2)})`);
-      grad.addColorStop(0.45, `rgba(0, 0, 0, ${(intensity * 0.6).toFixed(2)})`);
-      grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-
-      ctx.fillStyle = grad;
-      ctx.beginPath();
-      ctx.arc(screenX, screenY, effectiveRadius, 0, Math.PI * 2);
-      ctx.fill();
     }
 
     // 3. Tambahkan kilau hangat warna obor (warm amber glow) di atas potongan cahaya
@@ -191,8 +201,12 @@ export class DayNightSystem {
         continue;
       }
 
-      const warmColor = light.color ?? 'rgba(255, 185, 70, 0.12)';
-      const flicker = Math.sin(this.animTimer * 10 + light.y) * 3;
+      // Pada saat senja (dusk), buat kilau lentera sangat lembut dan menenangkan
+      const warmColor =
+        phase === 'dusk'
+          ? 'rgba(255, 190, 80, 0.07)'
+          : (light.color ?? 'rgba(255, 185, 70, 0.12)');
+      const flicker = Math.sin(this.animTimer * 2.0 + light.y) * 1.2;
       const glowRadius = Math.max(10, (light.radius + flicker) * 0.65);
 
       const glowGrad = ctx.createRadialGradient(

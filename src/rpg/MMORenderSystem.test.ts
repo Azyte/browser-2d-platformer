@@ -12,6 +12,8 @@ import {
   calculateDialogueModalBounds,
   calculateInventoryModalBounds,
   calculateShopModalBounds,
+  calculateStageHUDCardBounds,
+  calculateStageBannerBounds,
   checkRectOverlap,
   MMOVisualComponent,
 } from './MMORenderSystem';
@@ -158,5 +160,39 @@ describe('MMORenderSystem - Depth Y-Sorting & HUD Helpers', () => {
     expect(shopBounds.x).toBeGreaterThan(0);
     expect(shopBounds.x + shopBounds.w).toBeLessThan(vw);
   });
+
+  it('should calculate Stage HUD card and Stage victory banner bounds cleanly without offside', () => {
+    const vw = 800;
+    const vh = 480;
+
+    const stageBounds = calculateStageHUDCardBounds();
+    const bannerBounds = calculateStageBannerBounds(vw);
+    const minimapBounds = calculateMinimapBounds(vw);
+
+    // Stage HUD card is positioned neatly in top-left beneath player HUD panel
+    expect(stageBounds.x).toBe(14);
+    expect(stageBounds.y).toBe(94);
+    expect(stageBounds.w).toBe(210);
+    expect(stageBounds.h).toBe(24);
+
+    // Stage victory banner is centered horizontally
+    expect(bannerBounds.x).toBe(Math.round((vw - bannerBounds.w) / 2));
+    expect(bannerBounds.y).toBe(24);
+    expect(bannerBounds.w).toBe(480);
+    expect(bannerBounds.h).toBe(54);
+
+    // Banner and Stage card do not collide on 800px viewport
+    expect(checkRectOverlap(stageBounds, bannerBounds)).toBe(false);
+
+    // Banner and Minimap do not collide on 800px viewport
+    expect(checkRectOverlap(bannerBounds, minimapBounds)).toBe(false);
+
+    // Elements are strictly within screen boundaries
+    expect(stageBounds.x).toBeGreaterThanOrEqual(0);
+    expect(stageBounds.y + stageBounds.h).toBeLessThanOrEqual(vh);
+    expect(bannerBounds.x).toBeGreaterThanOrEqual(0);
+    expect(bannerBounds.x + bannerBounds.w).toBeLessThanOrEqual(vw);
+  });
 });
+
 

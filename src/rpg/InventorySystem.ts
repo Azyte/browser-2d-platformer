@@ -267,6 +267,72 @@ export function createStarterInventory(): InventoryComponent {
 }
 
 /**
+ * Factory helper untuk membuat item RPG berdasarkan ID.
+ */
+export function createItem(id: string): Item | null {
+  switch (id) {
+    case 'pot_hp':
+    case 'potion_hp':
+      return {
+        id: 'potion_hp',
+        name: 'Health Potion',
+        type: 'consumable',
+        rarity: 'common',
+        description: 'Brewed herbs that restore 50 Health Points.',
+        quantity: 1,
+        maxStack: 99,
+        healHp: 50,
+      };
+    case 'pot_mp':
+    case 'potion_mp':
+      return {
+        id: 'potion_mp',
+        name: 'Mana Potion',
+        type: 'consumable',
+        rarity: 'common',
+        description: 'Concentrated ether that restores 35 Mana Points.',
+        quantity: 1,
+        maxStack: 99,
+        healMp: 35,
+      };
+    case 'wpn_iron':
+    case 'iron_longsword':
+      return {
+        id: 'iron_longsword',
+        name: 'Iron Longsword',
+        type: 'weapon',
+        rarity: 'common',
+        description: 'A sturdy iron blade standard for kingdom guards.',
+        quantity: 1,
+        statBonus: { attack: 8 },
+      };
+    case 'arm_knight':
+    case 'squire_tunic':
+      return {
+        id: 'arm_knight',
+        name: 'Knight Armor',
+        type: 'armor',
+        rarity: 'rare',
+        description: 'Reinforced knight armor with chainmail padding.',
+        quantity: 1,
+        statBonus: { defense: 8, maxHp: 30 },
+      };
+    case 'slime_gel':
+      return {
+        id: 'slime_gel',
+        name: 'Slime Essence',
+        type: 'material',
+        rarity: 'common',
+        description: 'Gelatinous core from defeated Forest Slimes.',
+        quantity: 1,
+        maxStack: 99,
+      };
+    default:
+      return null;
+  }
+}
+
+/**
  * InventorySystem mengelola input buka/tutup antarmuka inventaris tas pemain.
  */
 export class InventorySystem {
