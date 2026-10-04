@@ -30,6 +30,7 @@ import { InventoryComponent, InventorySystem, createStarterInventory } from './r
 import { ShopSystem } from './rpg/ShopSystem';
 import { DayNightSystem } from './rpg/DayNightSystem';
 import { StageSystem } from './rpg/StageSystem';
+import { SaveSystem } from './rpg/SaveSystem';
 import type { Entity } from './ecs/Entity';
 
 // ============================================================================
@@ -64,6 +65,12 @@ app.innerHTML = `
           <span style="background: #238636; color: #ffffff; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;">
             🟢 Online (CH 1)
           </span>
+          <button id="btn-fullscreen" style="background: #21262d; border: 1px solid #388bfd; color: #58a6ff; min-height: 36px; padding: 0 10px; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; justify-content: center;">
+            ⛶ Fullscreen
+          </button>
+          <button id="btn-hud-menu" style="background: #21262d; border: 1px solid #d29922; color: #f0c674; min-height: 36px; padding: 0 10px; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; justify-content: center;">
+            ⏸️ Menu
+          </button>
           <button id="btn-debug-toggle" style="background: #21262d; border: 1px solid #388bfd; color: #58a6ff; min-height: 36px; padding: 0 10px; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; justify-content: center;">
             ⚙️ Debug (F3): OFF
           </button>
@@ -100,9 +107,177 @@ app.innerHTML = `
         </div>
       </div>
 
-      <!-- Canvas Container (Responsif tanpa offside horizontal) -->
-      <div style="position: relative; width: 100%; max-width: 800px; margin: 0 auto; box-sizing: border-box;">
+      <!-- Canvas Container & Overlays (Responsif, Anti-Offside, Fullscreen Ready) -->
+      <style>
+        #game-screen-wrapper:fullscreen {
+          width: 100vw !important;
+          height: 100vh !important;
+          max-width: 100vw !important;
+          display: flex !important;
+          flex-direction: column !important;
+          align-items: center !important;
+          justify-content: center !important;
+          background: #090d13 !important;
+          padding: 0 !important;
+          margin: 0 !important;
+          border-radius: 0 !important;
+        }
+        #game-screen-wrapper:fullscreen #game-canvas {
+          max-height: 100vh !important;
+          max-width: calc(100vh * (800 / 480)) !important;
+          width: 100% !important;
+          height: auto !important;
+          aspect-ratio: 800 / 480 !important;
+          object-fit: contain !important;
+          border: none !important;
+          border-radius: 0 !important;
+        }
+        .menu-btn-action {
+          transition: background 0.15s ease, transform 0.05s ease;
+        }
+        .menu-btn-action:active {
+          transform: scale(0.98);
+        }
+      </style>
+      <div id="game-screen-wrapper" style="position: relative; width: 100%; max-width: 800px; margin: 0 auto; box-sizing: border-box; overflow: hidden; border-radius: 8px;">
         <canvas id="game-canvas" width="${CANVAS_WIDTH}" height="${CANVAS_HEIGHT}" style="display: block; width: 100%; max-width: 800px; height: auto; aspect-ratio: 800 / 480; border: 1px solid #30363d; background: #0b130e; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); box-sizing: border-box;"></canvas>
+
+        <!-- Toast Notification Floating -->
+        <div id="game-toast" style="position: absolute; top: 14px; left: 50%; transform: translateX(-50%); background: #161b22; border: 1px solid #388bfd; color: #58a6ff; padding: 8px 16px; border-radius: 20px; font-size: 12px; font-weight: 600; z-index: 50; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.6); pointer-events: none; transition: opacity 0.3s ease; white-space: nowrap;">
+          Notifikasi
+        </div>
+
+        <!-- 1. Main Menu Overlay -->
+        <div id="main-menu-overlay" style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(9, 13, 19, 0.94); backdrop-filter: blur(6px); z-index: 30; padding: 20px; box-sizing: border-box; text-align: center;">
+          <div style="font-size: 26px; font-weight: 800; color: #58a6ff; letter-spacing: 1px; margin-bottom: 2px; text-shadow: 0 2px 10px rgba(88, 166, 255, 0.4);">
+            ⚔️ AETHELGARD
+          </div>
+          <div style="font-size: 12px; color: #8b949e; letter-spacing: 0.5px; margin-bottom: 14px;">
+            Top-Down MMORPG Engine
+          </div>
+          
+          <div id="menu-save-badge" style="background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 6px 14px; font-size: 11px; color: #f0c674; margin-bottom: 16px; display: inline-flex; align-items: center; gap: 6px;">
+            💾 Status: Memeriksa...
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 270px; box-sizing: border-box;">
+            <button id="btn-menu-start" class="menu-btn-action" style="min-height: 44px; background: #238636; border: 1px solid #3fb950; color: #ffffff; border-radius: 6px; font-size: 14px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 2px 8px rgba(35, 134, 54, 0.4);">
+              ▶ Mulai Petualangan
+            </button>
+            <button id="btn-menu-load" class="menu-btn-action" style="min-height: 44px; background: #1f6feb; border: 1px solid #388bfd; color: #ffffff; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 2px 8px rgba(31, 111, 235, 0.4);">
+              💾 Muat Game
+            </button>
+            <button id="btn-menu-settings" class="menu-btn-action" style="min-height: 44px; background: #21262d; border: 1px solid #484f58; color: #e6edf3; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
+              ⚙️ Pengaturan
+            </button>
+            <button id="btn-menu-fullscreen" class="menu-btn-action" style="min-height: 44px; background: #21262d; border: 1px solid #484f58; color: #79c0ff; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
+              ⛶ Layar Penuh
+            </button>
+            <button id="btn-menu-exit" class="menu-btn-action" style="min-height: 44px; background: #21262d; border: 1px solid #ff7b72; color: #ff7b72; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
+              🚪 Keluar / Info
+            </button>
+          </div>
+        </div>
+
+        <!-- 2. Pause Menu Overlay -->
+        <div id="pause-menu-overlay" style="position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; background: rgba(9, 13, 19, 0.92); backdrop-filter: blur(5px); z-index: 30; padding: 20px; box-sizing: border-box; text-align: center;">
+          <div style="font-size: 22px; font-weight: 800; color: #f0c674; margin-bottom: 4px;">
+            ⏸️ PERMAINAN DIJEDA
+          </div>
+          <div style="font-size: 12px; color: #8b949e; margin-bottom: 16px;">
+            Pilih menu atau tekan [Esc] untuk kembali
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 270px; box-sizing: border-box;">
+            <button id="btn-pause-resume" class="menu-btn-action" style="min-height: 44px; background: #238636; border: 1px solid #3fb950; color: #ffffff; border-radius: 6px; font-size: 14px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
+              ▶ Lanjut Bermain
+            </button>
+            <button id="btn-pause-save" class="menu-btn-action" style="min-height: 44px; background: #1f6feb; border: 1px solid #388bfd; color: #ffffff; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
+              💾 Simpan Progres (Save)
+            </button>
+            <button id="btn-pause-load" class="menu-btn-action" style="min-height: 44px; background: #21262d; border: 1px solid #388bfd; color: #58a6ff; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
+              🔄 Muat Simpanan Terakhir
+            </button>
+            <button id="btn-pause-settings" class="menu-btn-action" style="min-height: 44px; background: #21262d; border: 1px solid #484f58; color: #e6edf3; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
+              ⚙️ Pengaturan
+            </button>
+            <button id="btn-pause-fullscreen" class="menu-btn-action" style="min-height: 44px; background: #21262d; border: 1px solid #484f58; color: #79c0ff; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
+              ⛶ Layar Penuh
+            </button>
+            <button id="btn-pause-title" class="menu-btn-action" style="min-height: 44px; background: #21262d; border: 1px solid #ff7b72; color: #ff7b72; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
+              🏠 Kembali ke Menu Utama
+            </button>
+          </div>
+        </div>
+
+        <!-- 3. Settings Modal Overlay -->
+        <div id="settings-modal" style="position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; background: rgba(9, 13, 19, 0.95); backdrop-filter: blur(6px); z-index: 40; padding: 16px; box-sizing: border-box; overflow-y: auto;">
+          <div style="width: 100%; max-width: 420px; background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 16px; box-sizing: border-box;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid #21262d; padding-bottom: 8px;">
+              <h2 style="margin: 0; font-size: 15px; color: #58a6ff; font-weight: 700;">⚙️ Pengaturan Permainan</h2>
+              <button id="btn-close-settings-x" style="background: none; border: none; color: #8b949e; font-size: 18px; cursor: pointer; padding: 4px 8px; min-height: 36px;">✕</button>
+            </div>
+
+            <!-- Volume SFX Slider -->
+            <div style="margin-bottom: 14px;">
+              <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px;">
+                <span style="color: #e6edf3; font-weight: 600;">Volume Audio (SFX):</span>
+                <span id="setting-vol-text" style="color: #79c0ff; font-weight: bold;">30%</span>
+              </div>
+              <input id="setting-vol-slider" type="range" min="0" max="100" value="30" style="width: 100%; accent-color: #1f6feb; cursor: pointer; height: 6px;">
+            </div>
+
+            <!-- Toggles Grid (SFX & Light) -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;">
+              <button id="setting-sfx-toggle" class="menu-btn-action" style="min-height: 44px; background: #21262d; border: 1px solid #388bfd; color: #58a6ff; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer;">
+                🔊 SFX: Aktif
+              </button>
+              <button id="setting-light-toggle" class="menu-btn-action" style="min-height: 44px; background: #21262d; border: 1px solid #e3b341; color: #f0c674; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer;">
+                💡 Cahaya: Aktif
+              </button>
+            </div>
+
+            <button id="setting-fullscreen-btn" class="menu-btn-action" style="width: 100%; min-height: 44px; background: #21262d; border: 1px solid #30363d; color: #79c0ff; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; margin-bottom: 12px;">
+              ⛶ Toggle Mode Fullscreen
+            </button>
+
+            <!-- Panduan Kontrol Singkat -->
+            <div style="background: #0d1117; border: 1px solid #21262d; border-radius: 6px; padding: 10px; font-size: 11px; color: #8b949e; line-height: 1.5; margin-bottom: 14px;">
+              <div style="color: #c9d1d9; font-weight: 600; margin-bottom: 2px;">Panduan Kontrol:</div>
+              <div>• Gerak: [W, A, S, D] / Panah / Virtual D-Pad</div>
+              <div>• Serang: [Spasi / J] | Skill: [K / 1]</div>
+              <div>• Interaksi / Toko: [F] | Tas: [I / B]</div>
+              <div>• Jeda / Buka Menu: [Esc] / Tombol Menu</div>
+            </div>
+
+            <button id="btn-close-settings" class="menu-btn-action" style="width: 100%; min-height: 44px; background: #238636; border: 1px solid #3fb950; color: #ffffff; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer;">
+              Tutup Pengaturan
+            </button>
+          </div>
+        </div>
+
+        <!-- 4. Credits / Exit Modal Overlay -->
+        <div id="credits-modal" style="position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; background: rgba(9, 13, 19, 0.95); backdrop-filter: blur(6px); z-index: 40; padding: 16px; box-sizing: border-box; overflow-y: auto;">
+          <div style="width: 100%; max-width: 420px; background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 18px; box-sizing: border-box; text-align: center;">
+            <div style="font-size: 26px; margin-bottom: 6px;">🛡️</div>
+            <h2 style="margin: 0 0 4px 0; font-size: 17px; color: #58a6ff; font-weight: 700;">Aethelgard 2D Engine</h2>
+            <div style="font-size: 11px; color: #8b949e; margin-bottom: 12px;">Top-Down MMORPG Engine Portfolio (GDGoC)</div>
+            <div style="background: #0d1117; border: 1px solid #21262d; border-radius: 6px; padding: 12px; font-size: 11px; color: #c9d1d9; line-height: 1.6; text-align: left; margin-bottom: 14px;">
+              <div>• <strong>ECS Engine:</strong> Arsitektur modular Entity-Component-System murni.</div>
+              <div>• <strong>Grafis:</strong> Depth Y-Sorting & GPU Pre-rendered Light Sprites.</div>
+              <div>• <strong>Audio:</strong> Sintesis suara retro 16-bit Web Audio API.</div>
+              <div>• <strong>Penyimpanan:</strong> LocalStorage Save/Load System terintegrasi.</div>
+            </div>
+            <div style="display: flex; gap: 8px; width: 100%;">
+              <button id="btn-close-credits" class="menu-btn-action" style="flex: 1; min-height: 44px; background: #1f6feb; border: 1px solid #388bfd; color: #ffffff; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer;">
+                Kembali ke Menu
+              </button>
+              <button id="btn-exit-browser" class="menu-btn-action" style="flex: 1; min-height: 44px; background: #21262d; border: 1px solid #ff7b72; color: #ff7b72; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer;">
+                Tutup Sesi
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Mobile Touch Gamepad Controls (Ergonomis, Anti-Offside, Minimum 44px Tap Targets) -->
@@ -236,6 +411,46 @@ const touchTalk = document.querySelector<HTMLButtonElement>('#touch-talk')!;
 const touchBag = document.querySelector<HTMLButtonElement>('#touch-bag')!;
 const touchHp = document.querySelector<HTMLButtonElement>('#touch-hp')!;
 const touchMp = document.querySelector<HTMLButtonElement>('#touch-mp')!;
+
+// Elemen Antarmuka Main Menu, Pause Menu, Pengaturan, dan Fullscreen
+const gameWrapper = document.querySelector<HTMLDivElement>('#game-screen-wrapper')!;
+const gameToast = document.querySelector<HTMLDivElement>('#game-toast')!;
+const mainMenuOverlay = document.querySelector<HTMLDivElement>('#main-menu-overlay')!;
+const pauseMenuOverlay = document.querySelector<HTMLDivElement>('#pause-menu-overlay')!;
+const settingsModal = document.querySelector<HTMLDivElement>('#settings-modal')!;
+const creditsModal = document.querySelector<HTMLDivElement>('#credits-modal')!;
+const menuSaveBadge = document.querySelector<HTMLDivElement>('#menu-save-badge')!;
+
+const btnFullscreen = document.querySelector<HTMLButtonElement>('#btn-fullscreen')!;
+const btnHudMenu = document.querySelector<HTMLButtonElement>('#btn-hud-menu')!;
+
+const btnMenuStart = document.querySelector<HTMLButtonElement>('#btn-menu-start')!;
+const btnMenuLoad = document.querySelector<HTMLButtonElement>('#btn-menu-load')!;
+const btnMenuSettings = document.querySelector<HTMLButtonElement>('#btn-menu-settings')!;
+const btnMenuFullscreen = document.querySelector<HTMLButtonElement>('#btn-menu-fullscreen')!;
+const btnMenuExit = document.querySelector<HTMLButtonElement>('#btn-menu-exit')!;
+
+const btnPauseResume = document.querySelector<HTMLButtonElement>('#btn-pause-resume')!;
+const btnPauseSave = document.querySelector<HTMLButtonElement>('#btn-pause-save')!;
+const btnPauseLoad = document.querySelector<HTMLButtonElement>('#btn-pause-load')!;
+const btnPauseSettings = document.querySelector<HTMLButtonElement>('#btn-pause-settings')!;
+const btnPauseFullscreen = document.querySelector<HTMLButtonElement>('#btn-pause-fullscreen')!;
+const btnPauseTitle = document.querySelector<HTMLButtonElement>('#btn-pause-title')!;
+
+const settingVolSlider = document.querySelector<HTMLInputElement>('#setting-vol-slider')!;
+const settingVolText = document.querySelector<HTMLSpanElement>('#setting-vol-text')!;
+const settingSfxToggle = document.querySelector<HTMLButtonElement>('#setting-sfx-toggle')!;
+const settingLightToggle = document.querySelector<HTMLButtonElement>('#setting-light-toggle')!;
+const settingFullscreenBtn = document.querySelector<HTMLButtonElement>('#setting-fullscreen-btn')!;
+const btnCloseSettings = document.querySelector<HTMLButtonElement>('#btn-close-settings')!;
+const btnCloseSettingsX = document.querySelector<HTMLButtonElement>('#btn-close-settings-x')!;
+
+const btnCloseCredits = document.querySelector<HTMLButtonElement>('#btn-close-credits')!;
+const btnExitBrowser = document.querySelector<HTMLButtonElement>('#btn-exit-browser')!;
+
+type GameState = 'MENU' | 'PLAYING' | 'PAUSED' | 'SETTINGS' | 'CREDITS';
+let currentGameState: GameState = 'MENU';
+let previousGameState: GameState = 'MENU';
 
 // ============================================================================
 // 2. INISIALISASI ENGINE & MANAGERS
@@ -496,6 +711,340 @@ world.addComponent(player, createStarterInventory());
 camera.follow(400, 350, true);
 
 // ============================================================================
+// 4c. SISTEM MENU UTAMA, SIMPAN/MUAT, PENGATURAN & FULLSCREEN
+// ============================================================================
+
+function isFullscreenActive(): boolean {
+  return Boolean(
+    document.fullscreenElement ||
+    (document as unknown as { webkitFullscreenElement?: Element }).webkitFullscreenElement
+  );
+}
+
+function updateFullscreenButtons(): void {
+  const active = isFullscreenActive();
+  const label = active ? '🗗 Keluar Fullscreen' : '⛶ Fullscreen';
+  const menuLabel = active ? '🗗 Keluar Fullscreen' : '⛶ Layar Penuh';
+
+  if (btnFullscreen) btnFullscreen.textContent = label;
+  if (btnMenuFullscreen) btnMenuFullscreen.textContent = menuLabel;
+  if (btnPauseFullscreen) btnPauseFullscreen.textContent = menuLabel;
+  if (settingFullscreenBtn) {
+    settingFullscreenBtn.textContent = active ? '🗗 Keluar Mode Fullscreen' : '⛶ Toggle Mode Fullscreen';
+  }
+}
+
+function toggleFullscreen(): void {
+  try {
+    if (!isFullscreenActive()) {
+      const target = gameWrapper || document.documentElement;
+      if (target.requestFullscreen) {
+        target.requestFullscreen().catch(() => {});
+      } else if ((target as unknown as { webkitRequestFullscreen?: () => void }).webkitRequestFullscreen) {
+        (target as unknown as { webkitRequestFullscreen: () => void }).webkitRequestFullscreen();
+      }
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      } else if ((document as unknown as { webkitExitFullscreen?: () => void }).webkitExitFullscreen) {
+        (document as unknown as { webkitExitFullscreen: () => void }).webkitExitFullscreen();
+      }
+    }
+  } catch (err) {
+    console.warn('Mode fullscreen terkendala:', err);
+  }
+}
+
+document.addEventListener('fullscreenchange', updateFullscreenButtons);
+document.addEventListener('webkitfullscreenchange', updateFullscreenButtons);
+
+function showToast(message: string): void {
+  if (!gameToast) return;
+  gameToast.textContent = message;
+  gameToast.style.display = 'block';
+  gameToast.style.opacity = '1';
+
+  setTimeout(() => {
+    gameToast.style.opacity = '0';
+    setTimeout(() => {
+      gameToast.style.display = 'none';
+    }, 300);
+  }, 2200);
+}
+
+function updateSaveBadge(): void {
+  if (!menuSaveBadge) return;
+
+  if (SaveSystem.hasSave()) {
+    const data = SaveSystem.load();
+    if (data) {
+      menuSaveBadge.innerHTML = `💾 Simpanan: <strong>Stage ${data.stage.currentStageIndex + 1}</strong> (Lv. ${data.player.level} • ${data.player.gold} G)`;
+      menuSaveBadge.style.borderColor = '#238636';
+      menuSaveBadge.style.color = '#3fb950';
+      if (btnMenuLoad) {
+        btnMenuLoad.style.opacity = '1';
+      }
+      return;
+    }
+  }
+
+  menuSaveBadge.innerHTML = `💾 Status: <em>Belum ada data simpanan</em>`;
+  menuSaveBadge.style.borderColor = '#30363d';
+  menuSaveBadge.style.color = '#8b949e';
+  if (btnMenuLoad) {
+    btnMenuLoad.style.opacity = '0.7';
+  }
+}
+
+function hideAllOverlays(): void {
+  if (mainMenuOverlay) mainMenuOverlay.style.display = 'none';
+  if (pauseMenuOverlay) pauseMenuOverlay.style.display = 'none';
+  if (settingsModal) settingsModal.style.display = 'none';
+  if (creditsModal) creditsModal.style.display = 'none';
+}
+
+function showMainMenu(): void {
+  hideAllOverlays();
+  currentGameState = 'MENU';
+  if (mainMenuOverlay) mainMenuOverlay.style.display = 'flex';
+  updateSaveBadge();
+  updateFullscreenButtons();
+}
+
+function startGame(): void {
+  soundSynth.initContext();
+  soundSynth.playLevelUp();
+  hideAllOverlays();
+  currentGameState = 'PLAYING';
+  showToast('⚔️ Petualangan Dimulai!');
+  chatManager.addMessage('Aethelgard', 'Selamat bertualang! Tekan [Esc] untuk jeda/simpan permainan.', 'system');
+}
+
+function openPauseMenu(): void {
+  hideAllOverlays();
+  currentGameState = 'PAUSED';
+  if (pauseMenuOverlay) pauseMenuOverlay.style.display = 'flex';
+  updateFullscreenButtons();
+}
+
+function resumeGame(): void {
+  hideAllOverlays();
+  currentGameState = 'PLAYING';
+  showToast('▶ Permainan Dilanjutkan');
+}
+
+function openSettings(): void {
+  previousGameState = currentGameState;
+  hideAllOverlays();
+  currentGameState = 'SETTINGS';
+  if (settingsModal) settingsModal.style.display = 'flex';
+  syncSettingsUI();
+}
+
+function closeSettings(): void {
+  hideAllOverlays();
+  currentGameState = previousGameState;
+  if (currentGameState === 'MENU') {
+    if (mainMenuOverlay) mainMenuOverlay.style.display = 'flex';
+  } else if (currentGameState === 'PAUSED') {
+    if (pauseMenuOverlay) pauseMenuOverlay.style.display = 'flex';
+  }
+}
+
+function openCredits(): void {
+  previousGameState = currentGameState;
+  hideAllOverlays();
+  currentGameState = 'CREDITS';
+  if (creditsModal) creditsModal.style.display = 'flex';
+}
+
+function closeCredits(): void {
+  hideAllOverlays();
+  currentGameState = 'MENU';
+  if (mainMenuOverlay) mainMenuOverlay.style.display = 'flex';
+}
+
+function syncSettingsUI(): void {
+  if (settingVolSlider && settingVolText) {
+    const volPct = Math.round(soundSynth.volume * 100);
+    settingVolSlider.value = volPct.toString();
+    settingVolText.textContent = `${volPct}%`;
+  }
+  if (settingSfxToggle) {
+    settingSfxToggle.textContent = soundSynth.isMuted ? '🔇 SFX: Bisu' : '🔊 SFX: Aktif';
+    settingSfxToggle.style.color = soundSynth.isMuted ? '#ff7b72' : '#58a6ff';
+    settingSfxToggle.style.borderColor = soundSynth.isMuted ? '#f85149' : '#388bfd';
+  }
+  if (settingLightToggle) {
+    const on = dayNightSystem.isLightingEnabled;
+    settingLightToggle.textContent = on ? '💡 Cahaya: Aktif' : '💡 Cahaya: Nonaktif';
+    settingLightToggle.style.color = on ? '#f0c674' : '#8b949e';
+    settingLightToggle.style.borderColor = on ? '#e3b341' : '#30363d';
+  }
+  updateFullscreenButtons();
+}
+
+function saveCurrentGame(showFeedback: boolean = true): boolean {
+  const pStats = world.getComponent(player, StatsComponent);
+  const pTrans = world.getComponent(player, TransformComponent);
+  const pInv = world.getComponent(player, InventoryComponent);
+  if (!pStats || !pTrans || !pInv) return false;
+
+  const data = SaveSystem.createSaveData({
+    stats: pStats,
+    transform: pTrans,
+    inventory: pInv,
+    stageSystem: stageSystem,
+    settings: {
+      volume: soundSynth.volume,
+      isMuted: soundSynth.isMuted,
+      isLightingEnabled: dayNightSystem.isLightingEnabled,
+    },
+  });
+
+  const ok = SaveSystem.save(data);
+  if (ok) {
+    updateSaveBadge();
+    if (showFeedback) {
+      soundSynth.playShopTransaction();
+      showToast('💾 Progres Berhasil Disimpan!');
+      chatManager.addMessage('Sistem', `Progres tersimpan pada Stage ${stageSystem.getStageNumber()}`, 'system');
+    }
+  } else if (showFeedback) {
+    soundSynth.playErrorTone();
+    showToast('Gagal menyimpan permainan!');
+  }
+  return ok;
+}
+
+function loadSavedGame(): boolean {
+  soundSynth.initContext();
+  if (!SaveSystem.hasSave()) {
+    soundSynth.playErrorTone();
+    showToast('Belum ada data simpanan!');
+    return false;
+  }
+
+  const data = SaveSystem.load();
+  if (!data) {
+    soundSynth.playErrorTone();
+    showToast('Data simpanan rusak atau tidak valid!');
+    return false;
+  }
+
+  const pStats = world.getComponent(player, StatsComponent);
+  const pTrans = world.getComponent(player, TransformComponent);
+  const pInv = world.getComponent(player, InventoryComponent);
+  if (!pStats || !pTrans || !pInv) return false;
+
+  SaveSystem.applySaveData(data, {
+    stats: pStats,
+    transform: pTrans,
+    inventory: pInv,
+    stageSystem: stageSystem,
+  });
+
+  camera.follow(pTrans.x + 16, pTrans.y + 16, true);
+
+  if (data.settings) {
+    soundSynth.setVolume(data.settings.volume);
+    if (data.settings.isMuted !== soundSynth.isMuted) {
+      soundSynth.toggleMute();
+    }
+    if (data.settings.isLightingEnabled !== dayNightSystem.isLightingEnabled) {
+      dayNightSystem.toggleLighting();
+    }
+    syncSettingsUI();
+  }
+
+  soundSynth.playLevelUp();
+  hideAllOverlays();
+  currentGameState = 'PLAYING';
+  showToast(`💾 Progres Dimuat: Stage ${stageSystem.getStageNumber()} (Lv. ${pStats.level})`);
+  chatManager.addMessage('Sistem', `Data dimuat: Stage ${stageSystem.getStageNumber()}, Lv. ${pStats.level}`, 'system');
+  updateSaveBadge();
+  return true;
+}
+
+// Event Listeners Tombol Header
+btnFullscreen?.addEventListener('click', toggleFullscreen);
+btnHudMenu?.addEventListener('click', () => {
+  if (currentGameState === 'PLAYING') {
+    openPauseMenu();
+  } else if (currentGameState === 'PAUSED') {
+    resumeGame();
+  } else if (currentGameState === 'MENU') {
+    startGame();
+  }
+});
+
+// Event Listeners Main Menu
+btnMenuStart?.addEventListener('click', startGame);
+btnMenuLoad?.addEventListener('click', () => {
+  if (SaveSystem.hasSave()) {
+    loadSavedGame();
+  } else {
+    soundSynth.initContext();
+    soundSynth.playErrorTone();
+    showToast('Belum ada data simpanan!');
+  }
+});
+btnMenuSettings?.addEventListener('click', openSettings);
+btnMenuFullscreen?.addEventListener('click', toggleFullscreen);
+btnMenuExit?.addEventListener('click', openCredits);
+
+// Event Listeners Pause Menu
+btnPauseResume?.addEventListener('click', resumeGame);
+btnPauseSave?.addEventListener('click', () => saveCurrentGame(true));
+btnPauseLoad?.addEventListener('click', () => loadSavedGame());
+btnPauseSettings?.addEventListener('click', openSettings);
+btnPauseFullscreen?.addEventListener('click', toggleFullscreen);
+btnPauseTitle?.addEventListener('click', showMainMenu);
+
+// Event Listeners Settings Modal
+settingVolSlider?.addEventListener('input', () => {
+  const val = parseInt(settingVolSlider.value, 10) / 100;
+  soundSynth.setVolume(val);
+  if (settingVolText) settingVolText.textContent = `${settingVolSlider.value}%`;
+});
+settingSfxToggle?.addEventListener('click', () => {
+  soundSynth.toggleMute();
+  syncSettingsUI();
+  if (btnAudioToggle) {
+    btnAudioToggle.textContent = soundSynth.isMuted ? '🔇 Sound: OFF' : '🔊 Sound: ON';
+    btnAudioToggle.style.background = soundSynth.isMuted ? '#21262d' : '#1f6feb';
+  }
+});
+settingLightToggle?.addEventListener('click', () => {
+  dayNightSystem.toggleLighting();
+  syncSettingsUI();
+  if (btnLightingToggle) {
+    const on = dayNightSystem.isLightingEnabled;
+    btnLightingToggle.textContent = on ? '💡 Light: ON' : '💡 Light: OFF';
+    btnLightingToggle.style.background = on ? '#21262d' : '#161b22';
+    btnLightingToggle.style.color = on ? '#f0c674' : '#8b949e';
+  }
+});
+settingFullscreenBtn?.addEventListener('click', toggleFullscreen);
+btnCloseSettings?.addEventListener('click', closeSettings);
+btnCloseSettingsX?.addEventListener('click', closeSettings);
+
+// Event Listeners Credits Modal
+btnCloseCredits?.addEventListener('click', closeCredits);
+btnExitBrowser?.addEventListener('click', () => {
+  try {
+    window.close();
+  } catch {
+    // Diabaikan jika browser melarang window.close()
+  }
+  showMainMenu();
+  showToast('Sesi berakhir. Kembali ke Menu Utama.');
+});
+
+// Tampilkan menu awal saat permainan dibuka
+showMainMenu();
+
+// ============================================================================
 // 4b. SPAWN NPC INTERAKTIF (TETUA ROWAN)
 // ============================================================================
 
@@ -752,6 +1301,11 @@ function findNearestMonster(
 
 const loop = new GameLoop({
   update: (fixedDt: number) => {
+    if (currentGameState !== 'PLAYING') {
+      input.endFrame();
+      return;
+    }
+
     // 0. Update Siklus Siang/Malam Dunia & Stage System
     dayNightSystem.update(fixedDt);
     stageSystem.update(fixedDt);
@@ -947,7 +1501,7 @@ const loop = new GameLoop({
         const isBoss = mStats.level >= 7 || mVisual?.visualType === 'boss' || (mPlate?.name.includes('Fenrir') ?? false);
         const respawnDelay = stageSystem.getRespawnDelay(mStats.level, isBoss);
 
-        stageSystem.onMonsterKilled(
+        const stageCleared = stageSystem.onMonsterKilled(
           mVisual?.visualType ?? 'slime',
           mPlate?.name ?? 'Monster',
           world,
@@ -955,6 +1509,10 @@ const loop = new GameLoop({
           chatManager,
           soundSynth
         );
+
+        if (stageCleared) {
+          saveCurrentGame(false);
+        }
 
         deadMonsters.push({
           entity: m,
@@ -1034,16 +1592,42 @@ const loop = new GameLoop({
 
 window.addEventListener('keydown', (e) => {
   if (e.code === 'Escape') {
-    if (shopSystem.isOpen) {
-      shopSystem.close();
+    if (currentGameState === 'SETTINGS') {
+      closeSettings();
+      return;
     }
-    if (npcSystem.isDialogueOpen) {
-      npcSystem.closeDialogue();
+    if (currentGameState === 'CREDITS') {
+      closeCredits();
+      return;
     }
-    const pInv = world.getComponent(player, InventoryComponent);
-    if (pInv && pInv.isOpen) {
-      pInv.isOpen = false;
+    if (currentGameState === 'PAUSED') {
+      resumeGame();
+      return;
     }
+    if (currentGameState === 'PLAYING') {
+      if (shopSystem.isOpen) {
+        shopSystem.close();
+        return;
+      }
+      if (npcSystem.isDialogueOpen) {
+        npcSystem.closeDialogue();
+        return;
+      }
+      const pInv = world.getComponent(player, InventoryComponent);
+      if (pInv && pInv.isOpen) {
+        pInv.isOpen = false;
+        return;
+      }
+      openPauseMenu();
+      return;
+    }
+  }
+
+  // F4 shortcut untuk toggle fullscreen
+  if (e.code === 'F4') {
+    e.preventDefault();
+    toggleFullscreen();
+    return;
   }
 
   // Angka 1-5 saat Toko Pedagang Terbuka (Quick-Buy)
@@ -1127,6 +1711,7 @@ window.addEventListener('keydown', (e) => {
 
 // Penanganan Klik Mouse / Sentuhan pada Canvas untuk Dialog, Inventaris & Toko
 canvas.addEventListener('click', (e) => {
+  if (currentGameState !== 'PLAYING') return;
   soundSynth.initContext();
   const rect = canvas.getBoundingClientRect();
   const scaleX = CANVAS_WIDTH / rect.width;

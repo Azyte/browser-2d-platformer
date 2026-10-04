@@ -117,6 +117,13 @@ export class StageSystem {
   }
 
   /**
+   * Mendapatkan nomor stage aktif saat ini (1-indexed).
+   */
+  public getStageNumber(): number {
+    return this.getCurrentStage().stageNumber;
+  }
+
+  /**
    * Menghitung durasi respawn monster berdasarkan level dan status boss.
    * Memberikan waktu jeda yang cukup (20s normal, 45s boss) agar pemain tidak terburu-buru.
    */
