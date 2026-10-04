@@ -46,16 +46,16 @@ export class MonsterAISystem implements System {
 
       if (!transform || !velocity || !stats || !combat || !ai) continue;
 
-      // 1. Tangani Monster Mati
-      if (stats.hp <= 0) {
+      // 1. Tangani Monster Mati / Sedang Menunggu Respawn di Luar Arena
+      if (stats.hp <= 0 || transform.x < -1000) {
         velocity.vx = 0;
         velocity.vy = 0;
         ai.state = 'idle';
         ai.targetEntity = null;
         ai.stateTimer += dt;
 
-        // Respawn jika durasi telah tercapai
-        if (ai.stateTimer >= this.respawnDuration) {
+        // Respawn otomatis hanya jika tidak dikelola oleh sistem graveyard eksternal (transform.x >= -1000)
+        if (transform.x >= -1000 && ai.stateTimer >= this.respawnDuration) {
           stats.hp = stats.maxHp;
           transform.x = ai.homeX;
           transform.y = ai.homeY;

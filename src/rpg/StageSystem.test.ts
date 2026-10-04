@@ -126,4 +126,28 @@ describe('StageSystem', () => {
     stageSystem.currentKills = 6;
     expect(stageSystem.getKillProgressRatio()).toBe(1.0);
   });
+
+  it('harus menjaga stage tidak bertambah liar tanpa kill yang valid', () => {
+    // Stage 1 mulai dari 0/4 kills
+    expect(stageSystem.currentStageIndex).toBe(0);
+    expect(stageSystem.currentKills).toBe(0);
+
+    // 1 kill yang valid -> 1/4
+    stageSystem.onMonsterKilled('slime', 'Forest Slime', world);
+    expect(stageSystem.currentKills).toBe(1);
+    expect(stageSystem.currentStageIndex).toBe(0);
+
+    // Monster yang tidak sesuai tidak boleh menambah stage
+    stageSystem.onMonsterKilled('goblin', 'Goblin Scout', world);
+    stageSystem.onMonsterKilled('wolf', 'Dire Wolf', world);
+    expect(stageSystem.currentKills).toBe(1);
+    expect(stageSystem.currentStageIndex).toBe(0);
+
+    // Update frame berkali-kali tanpa kill tidak boleh mengubah stage atau kill count
+    for (let f = 0; f < 60; f++) {
+      stageSystem.update(0.016);
+    }
+    expect(stageSystem.currentKills).toBe(1);
+    expect(stageSystem.currentStageIndex).toBe(0);
+  });
 });

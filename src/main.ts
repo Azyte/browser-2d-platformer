@@ -899,7 +899,15 @@ const loop = new GameLoop({
       const mPlate = world.getComponent(m, NameplateComponent);
       const mAi = world.getComponent(m, MonsterAIComponent);
 
-      if (mStats && mTrans && mStats.hp <= 0 && mAi) {
+      // Hanya evaluasi monster yang aktif di dunia (bukan yang sedang mati/menunggu respawn di koordinat -9999)
+      if (
+        mStats &&
+        mTrans &&
+        mStats.hp <= 0 &&
+        mAi &&
+        mTrans.x > -1000 &&
+        !deadMonsters.some((r) => r.entity === m)
+      ) {
         const lootX = mTrans.x;
         const lootY = mTrans.y;
 
