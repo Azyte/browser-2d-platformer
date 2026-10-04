@@ -148,7 +148,7 @@ app.innerHTML = `
         </div>
 
         <!-- 1. Main Menu Overlay -->
-        <div id="main-menu-overlay" style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(9, 13, 19, 0.94); backdrop-filter: blur(6px); z-index: 30; padding: 20px; box-sizing: border-box; text-align: center;">
+        <div id="main-menu-overlay" style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: radial-gradient(ellipse at center, #161b22 0%, #090d13 100%); z-index: 30; padding: 20px; box-sizing: border-box; text-align: center;">
           <div style="font-size: 26px; font-weight: 800; color: #58a6ff; letter-spacing: 1px; margin-bottom: 2px; text-shadow: 0 2px 10px rgba(88, 166, 255, 0.4);">
             ⚔️ AETHELGARD
           </div>
@@ -180,7 +180,7 @@ app.innerHTML = `
         </div>
 
         <!-- 2. Pause Menu Overlay -->
-        <div id="pause-menu-overlay" style="position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; background: rgba(9, 13, 19, 0.92); backdrop-filter: blur(5px); z-index: 30; padding: 20px; box-sizing: border-box; text-align: center;">
+        <div id="pause-menu-overlay" style="position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; background: rgba(9, 13, 19, 0.92); z-index: 30; padding: 20px; box-sizing: border-box; text-align: center;">
           <div style="font-size: 22px; font-weight: 800; color: #f0c674; margin-bottom: 4px;">
             ⏸️ PERMAINAN DIJEDA
           </div>
@@ -211,7 +211,7 @@ app.innerHTML = `
         </div>
 
         <!-- 3. Settings Modal Overlay -->
-        <div id="settings-modal" style="position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; background: rgba(9, 13, 19, 0.95); backdrop-filter: blur(6px); z-index: 40; padding: 16px; box-sizing: border-box; overflow-y: auto;">
+        <div id="settings-modal" style="position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; background: rgba(9, 13, 19, 0.95); z-index: 40; padding: 16px; box-sizing: border-box; overflow-y: auto;">
           <div style="width: 100%; max-width: 420px; background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 16px; box-sizing: border-box;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid #21262d; padding-bottom: 8px;">
               <h2 style="margin: 0; font-size: 15px; color: #58a6ff; font-weight: 700;">⚙️ Pengaturan Permainan</h2>
@@ -257,7 +257,7 @@ app.innerHTML = `
         </div>
 
         <!-- 4. Credits / Exit Modal Overlay -->
-        <div id="credits-modal" style="position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; background: rgba(9, 13, 19, 0.95); backdrop-filter: blur(6px); z-index: 40; padding: 16px; box-sizing: border-box; overflow-y: auto;">
+        <div id="credits-modal" style="position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; background: rgba(9, 13, 19, 0.95); z-index: 40; padding: 16px; box-sizing: border-box; overflow-y: auto;">
           <div style="width: 100%; max-width: 420px; background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 18px; box-sizing: border-box; text-align: center;">
             <div style="font-size: 26px; margin-bottom: 6px;">🛡️</div>
             <h2 style="margin: 0 0 4px 0; font-size: 17px; color: #58a6ff; font-weight: 700;">Aethelgard 2D Engine</h2>
@@ -1563,6 +1563,19 @@ const loop = new GameLoop({
   },
 
   render: (alpha: number) => {
+    if (currentGameState === 'MENU' || currentGameState === 'CREDITS') {
+      // Saat di menu utama/credits, bersihkan canvas dengan latar belakang gelap
+      // Hindari kalkulasi rendering ratusan entitas dunia yang tertutup menu untuk menjaga 60 FPS stabil
+      ctx.fillStyle = '#090d13';
+      ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+      fpsEl.textContent = loop.fps.toString();
+      upsEl.textContent = loop.ups.toString();
+      clockEl.textContent = `${dayNightSystem.getTimeString()} ${dayNightSystem.getPhase().toUpperCase()}`;
+      entitiesEl.textContent = '0';
+      return;
+    }
+
     // 1. Render gameplay MMORPG
     mmoRenderSystem.render(world, alpha, player);
 
