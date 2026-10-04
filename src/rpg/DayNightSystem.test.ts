@@ -52,4 +52,16 @@ describe('DayNightSystem', () => {
     dayNight.setTime(21.75); // 21:45
     expect(dayNight.getTimeString()).toBe('21:45');
   });
+
+  it('harus mengaktifkan dan menonaktifkan efek pencahayaan dengan toggleLighting', () => {
+    expect(dayNight.isLightingEnabled).toBe(true);
+
+    const toggledOff = dayNight.toggleLighting();
+    expect(toggledOff).toBe(false);
+    expect(dayNight.isLightingEnabled).toBe(false);
+
+    const toggledOn = dayNight.toggleLighting();
+    expect(toggledOn).toBe(true);
+    expect(dayNight.isLightingEnabled).toBe(true);
+  });
 });

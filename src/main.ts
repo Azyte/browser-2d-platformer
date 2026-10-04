@@ -129,6 +129,9 @@ app.innerHTML = `
             <button id="btn-stress-bots" style="background: #6e40c9; border: 1px solid #8957e5; color: #ffffff; min-height: 44px; padding: 0 10px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;">
               🤖 +4 Bots
             </button>
+            <button id="btn-lighting-toggle" style="background: #21262d; border: 1px solid #e3b341; color: #f0c674; min-height: 44px; padding: 0 10px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;">
+              💡 Light: ON
+            </button>
             <button id="btn-audio-toggle" style="background: #1f6feb; border: 1px solid #58a6ff; color: #ffffff; min-height: 44px; padding: 0 10px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;">
               🔊 Sound: ON
             </button>
@@ -185,14 +188,14 @@ app.innerHTML = `
           <div><strong style="color: #e6edf3;">[F]</strong>: Bicara (Tetua Rowan) / Buka Toko (Pedagang Elric)</div>
           <div><strong style="color: #e6edf3;">[I / B]</strong>: Buka/Tutup Tas & Equipment Modal</div>
           <div><strong style="color: #e6edf3;">[1-5]</strong>: Beli Cepat Toko | <strong style="color: #e6edf3;">[1-3]</strong>: Opsi Dialog</div>
-          <div><strong style="color: #e6edf3;">[Q / E]</strong>: Minum HP/MP Potion | <strong style="color: #e6edf3;">[F3]</strong>: Toggle Hitbox & Radar</div>
+          <div><strong style="color: #e6edf3;">[Q / E]</strong>: Minum HP/MP Potion | <strong style="color: #e6edf3;">[L]</strong>: Toggle Cahaya | <strong style="color: #e6edf3;">[F3]</strong>: Debug</div>
         </div>
         <div style="background: #161b22; padding: 12px 14px; border-radius: 6px; border: 1px solid #30363d; font-size: 12px; color: #8b949e; line-height: 1.5; box-sizing: border-box; overflow-wrap: break-word;">
           <div style="font-weight: 600; color: #e3b341; margin-bottom: 4px;">✨ Fitur Unggulan Engine:</div>
           <div>- Toko & Gold Economy: Belanja senjata, zirah, dan ramuan ke Pedagang Elric.</div>
           <div>- Dialog Interaktif: Bicara dengan Tetua Rowan untuk berkah & lore dunia.</div>
           <div>- Visual Inventory & Equipment: Kelola tas dan gear secara real-time.</div>
-          <div>- Day/Night & Radial Lighting: Siklus dinamis dengan lentera obor.</div>
+          <div>- Day/Night & Optimized Lighting: Siklus dinamis dengan lentera obor hemat GPU (60 FPS).</div>
           <div>- Depth Y-Sorting: Karakter melangkah di depan/belakang pohon & NPC.</div>
         </div>
       </div>
@@ -215,6 +218,7 @@ const entitiesEl = document.querySelector<HTMLDivElement>('#entities-val')!;
 const badgeStageEl = document.querySelector<HTMLSpanElement>('#badge-stage');
 const btnDebugToggle = document.querySelector<HTMLButtonElement>('#btn-debug-toggle')!;
 const btnAudioToggle = document.querySelector<HTMLButtonElement>('#btn-audio-toggle')!;
+const btnLightingToggle = document.querySelector<HTMLButtonElement>('#btn-lighting-toggle')!;
 const btnStressMobs = document.querySelector<HTMLButtonElement>('#btn-stress-mobs')!;
 const btnStressBots = document.querySelector<HTMLButtonElement>('#btn-stress-bots')!;
 const btnChatWave = document.querySelector<HTMLButtonElement>('#btn-chat-wave')!;
@@ -302,6 +306,22 @@ btnAudioToggle.addEventListener('click', () => {
   btnAudioToggle.textContent = isMuted ? '🔇 Sound: OFF' : '🔊 Sound: ON';
   btnAudioToggle.style.background = isMuted ? '#6e7681' : '#1f6feb';
 });
+
+// Lighting Toggle (Optimized 60 FPS / Low-End Hardware Mode)
+function toggleLighting(): void {
+  const isLight = dayNightSystem.toggleLighting();
+  btnLightingToggle.textContent = isLight ? '💡 Light: ON' : '💡 Light: OFF';
+  btnLightingToggle.style.background = isLight ? '#21262d' : '#161b22';
+  btnLightingToggle.style.color = isLight ? '#f0c674' : '#8b949e';
+  btnLightingToggle.style.borderColor = isLight ? '#e3b341' : '#30363d';
+  chatManager.addMessage(
+    'System',
+    `Efek pencahayaan siklus: ${isLight ? 'ON (GPU Hardware Sprites)' : 'OFF (Mode Performa Maksimal)'}`,
+    'system'
+  );
+}
+
+btnLightingToggle.addEventListener('click', toggleLighting);
 
 // Quick Emotes
 btnChatWave.addEventListener('click', () => {
@@ -1089,6 +1109,11 @@ window.addEventListener('keydown', (e) => {
         }
       }
     }
+  }
+
+  // Tombol [L] untuk toggle efek pencahayaan dinamis (mode hemat daya / 60 FPS)
+  if (e.code === 'KeyL' && !shopSystem.isOpen && !npcSystem.isDialogueOpen) {
+    toggleLighting();
   }
 });
 

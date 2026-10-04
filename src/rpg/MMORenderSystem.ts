@@ -339,8 +339,12 @@ export class MMORenderSystem implements System {
     ctx.restore();
 
     // 4c. Render Radial Lighting (Malam, fajar, senja & lentera obor)
-    if (this.dayNightSystem) {
-      const lights = this.collectLightSources(world, mainPlayerEntity, alpha);
+    if (
+      this.dayNightSystem &&
+      this.dayNightSystem.isLightingEnabled &&
+      this.dayNightSystem.getAmbientDarkness() > 0.04
+    ) {
+      const lights = this.collectLightSources(world, cam, mainPlayerEntity, alpha);
       this.dayNightSystem.renderLighting(ctx, cam, lights);
     }
 
@@ -1714,16 +1718,28 @@ export class MMORenderSystem implements System {
   }
 
   /**
-   * Mengumpulkan seluruh sumber cahaya di dunia (pemain, api unggun, bot, boss).
+   * Mengumpulkan sumber cahaya di sekitar viewport kamera (pemain, api unggun, bot terdekat).
+   * Dilengkapi frustum culling ketat agar tidak membebani performa frame rate (60 FPS).
    */
   private collectLightSources(
     world: World,
+    cam: Camera2D,
     player?: Entity | null,
     alpha: number = 1.0
   ): LightSource[] {
     const lights: LightSource[] = [];
 
-    // 1. Obor / Lentera Pemain Utama
+    // Helper frustum culling: hanya proses cahaya yang berada dalam jangkauan layar
+    const isVisibleInCam = (x: number, y: number, r: number): boolean => {
+      return (
+        x + r >= cam.x &&
+        x - r <= cam.x + cam.viewportWidth &&
+        y + r >= cam.y &&
+        y - r <= cam.y + cam.viewportHeight
+      );
+    };
+
+    // 1. Obor / Lentera Pemain Utama (selalu diprioritaskan)
     if (player) {
       const pTrans = world.getComponent(player, TransformComponent);
       if (pTrans) {
@@ -1732,54 +1748,66 @@ export class MMORenderSystem implements System {
         lights.push({
           x: px,
           y: py,
-          radius: 140,
-          intensity: 0.92,
-          color: 'rgba(255, 195, 80, 0.22)',
+          radius: 130,
+          intensity: 0.90,
+          color: 'rgba(255, 195, 80, 0.20)',
         });
       }
     }
 
-    // 2. Api Unggun / Lentera Desa di Pusat Sanctuary
-    lights.push({
-      x: 430,
-      y: 350,
-      radius: 170,
-      intensity: 0.95,
-      color: 'rgba(255, 130, 40, 0.3)',
-    });
+    // 2. Api Unggun Desa Sanctuary (hanya jika tampak di layar)
+    if (isVisibleInCam(430, 350, 160)) {
+      lights.push({
+        x: 430,
+        y: 350,
+        radius: 160,
+        intensity: 0.92,
+        color: 'rgba(255, 130, 40, 0.28)',
+      });
+    }
 
-    // 3. Lentera Bot Pemain
+    // 3. Lentera Bot Pemain (hanya bot yang terlihat di layar, dibatasi maksimal 4 bot)
     const bots = world.query(SimulatedPlayerComponent, TransformComponent);
+    let botCount = 0;
     for (const bot of bots) {
+      if (botCount >= 4) break;
       const bTrans = world.getComponent(bot, TransformComponent);
       if (bTrans) {
         const bx = bTrans.prevX + (bTrans.x - bTrans.prevX) * alpha + 16;
         const by = bTrans.prevY + (bTrans.y - bTrans.prevY) * alpha + 16;
-        lights.push({
-          x: bx,
-          y: by,
-          radius: 80,
-          intensity: 0.75,
-          color: 'rgba(200, 225, 255, 0.15)',
-        });
+        if (isVisibleInCam(bx, by, 70)) {
+          lights.push({
+            x: bx,
+            y: by,
+            radius: 70,
+            intensity: 0.70,
+            color: 'rgba(200, 225, 255, 0.12)',
+          });
+          botCount++;
+        }
       }
     }
 
-    // 4. Aura Ungu Berpendar dari World Boss Fenrir
-    const monsters = world.query(MonsterAIComponent, TransformComponent, StatsComponent);
-    for (const m of monsters) {
-      const stats = world.getComponent(m, StatsComponent);
-      const mTrans = world.getComponent(m, TransformComponent);
-      if (stats && mTrans && stats.level >= 7 && stats.hp > 0) {
-        const mx = mTrans.prevX + (mTrans.x - mTrans.prevX) * alpha + 27;
-        const my = mTrans.prevY + (mTrans.y - mTrans.prevY) * alpha + 27;
-        lights.push({
-          x: mx,
-          y: my,
-          radius: 160,
-          intensity: 0.85,
-          color: 'rgba(180, 90, 255, 0.25)',
-        });
+    // 4. Aura Ungu Berpendar dari World Boss Fenrir (hanya jika ada di layar)
+    if (isVisibleInCam(1950, 680, 160)) {
+      const monsters = world.query(MonsterAIComponent, TransformComponent, StatsComponent);
+      for (const m of monsters) {
+        const stats = world.getComponent(m, StatsComponent);
+        const mTrans = world.getComponent(m, TransformComponent);
+        if (stats && mTrans && stats.level >= 7 && stats.hp > 0) {
+          const mx = mTrans.prevX + (mTrans.x - mTrans.prevX) * alpha + 27;
+          const my = mTrans.prevY + (mTrans.y - mTrans.prevY) * alpha + 27;
+          if (isVisibleInCam(mx, my, 150)) {
+            lights.push({
+              x: mx,
+              y: my,
+              radius: 150,
+              intensity: 0.80,
+              color: 'rgba(180, 90, 255, 0.22)',
+            });
+          }
+          break;
+        }
       }
     }
 
